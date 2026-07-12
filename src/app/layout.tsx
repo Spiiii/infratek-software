@@ -35,6 +35,9 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: company.director }],
   creator: company.name,
+  icons: {                 
+    icon: "/favicon.png",
+  },
   openGraph: {
     type: "website",
     locale: "vi_VN",
