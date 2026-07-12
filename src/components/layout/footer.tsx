@@ -14,7 +14,7 @@ export function Footer() {
           <div className="lg:col-span-1">
             <Link href="/" className="mb-6 flex items-center gap-2.5">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-primary">
-                <span className="text-sm font-bold text-white">I</span>
+                <span className="text-sm font-bold text-white">IFTS</span>
               </div>
               <div className="flex flex-col">
                 <span className="text-base font-bold tracking-tight">Infratek</span>
