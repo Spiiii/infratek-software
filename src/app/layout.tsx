@@ -4,6 +4,7 @@ import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { company } from "@/data/company";
+import Script from "next/script";
 import "./globals.css";
 
 const inter = Inter({
@@ -63,6 +64,21 @@ export default function RootLayout({
 }) {
   return (
     <html lang="vi" className={inter.variable}>
+      <head>
+        {/*Google Analytics script */}
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-SMCJS2288K"
+          strategy="afterInteractive" // chỉ chạy sau khi trang render
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-SMCJS2288K');
+          `}
+        </Script>
+      </head>
       <body className="min-h-screen font-sans">
         <TooltipProvider delayDuration={200}>
           <Navbar />
