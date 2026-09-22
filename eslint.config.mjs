@@ -5,6 +5,12 @@ import nextTypeScript from "eslint-config-next/typescript";
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTypeScript,
+  {
+    files: ["src/migrations/**/*.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/no-unused-vars": "off",
+    },
+  },
   globalIgnores([".next/**", "node_modules/**", "out/**", "build/**"]),
 ]);
 
