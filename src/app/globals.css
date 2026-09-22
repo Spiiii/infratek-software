@@ -6,6 +6,7 @@
    DESIGN TOKENS (Infratek blue theme)
    ============================================ */
 :root {
+  --font-inter: "Segoe UI";
   --background: 210 40% 99%;
   --foreground: 222 47% 11%;
   --card: 0 0% 100%;

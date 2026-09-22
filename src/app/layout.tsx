@@ -1,17 +1,10 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { company } from "@/data/company";
 import Script from "next/script";
 import "./globals.css";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -63,7 +56,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="vi" className={inter.variable}>
+    <html lang="vi">
       <head>
         {/*Google Analytics script */}
         <Script
