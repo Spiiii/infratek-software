@@ -1,7 +1,7 @@
 // File: src/components/blog/table-of-contents.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 
 interface TOCItem {
@@ -15,10 +15,9 @@ interface TableOfContentsProps {
 }
 
 export function TableOfContents({ content }: TableOfContentsProps) {
-  const [headings, setHeadings] = useState<TOCItem[]>([]);
   const [activeId, setActiveId] = useState("");
 
-  useEffect(() => {
+  const headings = useMemo(() => {
     const items: TOCItem[] = [];
     const regex = /^(#{2,3})\s+(.+)$/gm;
     let match;
@@ -33,7 +32,7 @@ export function TableOfContents({ content }: TableOfContentsProps) {
         .replace(/(^-|-$)/g, "");
       items.push({ id, text, level: match[1].length });
     }
-    setHeadings(items);
+    return items;
   }, [content]);
 
   useEffect(() => {

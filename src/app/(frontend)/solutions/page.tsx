@@ -12,7 +12,6 @@ import {
   Lightbulb,
 } from "lucide-react";
 import { solutions } from "@/data/solutions";
-import { SectionHeading } from "@/components/layout/section-heading";
 import { CTASection } from "@/components/layout/cta-section";
 import { FadeIn } from "@/components/shared/fade-in";
 import { Badge } from "@/components/ui/badge";

@@ -23,10 +23,6 @@ export function Navbar() {
   }, []);
 
   useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
-
-  useEffect(() => {
     document.body.style.overflow = mobileOpen ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
@@ -130,6 +126,7 @@ export function Navbar() {
                   >
                     <Link
                       href={item.href}
+                      onClick={() => setMobileOpen(false)}
                       className={cn(
                         "flex flex-col rounded-xl px-4 py-3 transition-colors",
                         isActive

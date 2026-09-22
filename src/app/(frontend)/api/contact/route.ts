@@ -1,10 +1,16 @@
 import { Resend } from "resend";
 import { contactFormSchema } from "@/lib/validations";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export async function POST(request: Request) {
   try {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      return Response.json(
+        { error: "Dịch vụ email chưa được cấu hình." },
+        { status: 503 }
+      );
+    }
+
     const body = await request.json();
     const parsed = contactFormSchema.safeParse(body);
 
@@ -16,6 +22,7 @@ export async function POST(request: Request) {
     }
 
     const data = parsed.data;
+    const resend = new Resend(apiKey);
 
     const { error } = await resend.emails.send({
       from: "Website Infratek <admin@infratek.vn>",
@@ -35,9 +42,9 @@ export async function POST(request: Request) {
     });
 
     if (error) {
-  console.error(error);
-  return Response.json({ error: error.message }, { status: 500 });
-}
+      console.error(error);
+      return Response.json({ error: error.message }, { status: 500 });
+    }
 
     return Response.json({ success: true });
   } catch {

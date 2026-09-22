@@ -1,7 +1,7 @@
 // File: src/app/blog/page.tsx
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { Search } from "lucide-react";
 import { blogPosts, blogCategories, getFeaturedPosts } from "@/data/blog";
 import { BlogCard } from "@/components/blog/blog-card";
@@ -17,17 +17,15 @@ export default function BlogPage() {
   const [category, setCategory] = useState<BlogCategory | "all">("all");
   const featured = getFeaturedPosts();
 
-  const filtered = useMemo(() => {
-    return blogPosts.filter((post) => {
-      const matchCategory = category === "all" || post.category === category;
-      const matchSearch =
-        !search ||
-        post.title.toLowerCase().includes(search.toLowerCase()) ||
-        post.excerpt.toLowerCase().includes(search.toLowerCase()) ||
-        post.tags.some((t) => t.toLowerCase().includes(search.toLowerCase()));
-      return matchCategory && matchSearch;
-    });
-  }, [search, category]);
+  const filtered = blogPosts.filter((post) => {
+    const matchCategory = category === "all" || post.category === category;
+    const matchSearch =
+      !search ||
+      post.title.toLowerCase().includes(search.toLowerCase()) ||
+      post.excerpt.toLowerCase().includes(search.toLowerCase()) ||
+      post.tags.some((t) => t.toLowerCase().includes(search.toLowerCase()));
+    return matchCategory && matchSearch;
+  });
 
   return (
     <>
