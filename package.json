@@ -14,7 +14,9 @@
     "payload:verify-phase0": "tsx scripts/verify-phase0.ts",
     "payload:migrate": "tsx scripts/run-payload-migration.ts migrate",
     "payload:migrate:create": "tsx scripts/run-payload-migration.ts migrate:create",
+    "payload:migrate:down": "tsx scripts/run-payload-migration.ts migrate:down",
     "payload:migrate:status": "tsx scripts/run-payload-migration.ts migrate:status",
+    "payload:verify-rest-restart": "tsx scripts/verify-rest-restart.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint ."
   },

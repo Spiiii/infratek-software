@@ -78,3 +78,49 @@ The remaining dependency audit result is unchanged: zero critical/high findings,
 - Change the initial admin password after first login, then remove `PAYLOAD_ADMIN_PASSWORD` from the local environment if the bootstrap script is no longer needed.
 - The connection string was shared in the task conversation. Rotate the Neon database password after confirming access, then run `neon env pull` again.
 - The generated Neon MCP key has account-wide access. Revoke or replace it with a narrower credential when the MCP integration is not needed.
+
+## Acceptance follow-up — 2026-09-23
+
+The additional acceptance checks requested after review were run on disposable Neon branches derived from `production`, not against the production branch itself.
+
+### REST API and authentication
+
+- Anonymous `GET /api/spike-pages` succeeded, matching the intended public-read policy.
+- Anonymous `POST /api/spike-pages` was rejected with an authorization status.
+- Admin login through `POST /api/users/login` returned a JWT.
+- Authenticated create, read, update, and delete calls against `/api/spike-pages` passed.
+- The temporary verification record was deleted at the end of the test.
+
+The repeatable check is available as `npm run payload:verify-rest-restart`.
+
+### Persistence after restart
+
+The REST verification created and updated a record, stopped the Next.js dev server, started a new dev-server process, and read the same record and updated value successfully before deleting it. This confirms persistence is in Neon rather than process memory.
+
+### Migration rollback and replay
+
+On disposable branch `phase0-acceptance-20260923`, using the direct/unpooled connection:
+
+1. `payload:migrate:down` rolled back batch 1 and reported the initial migration as `Ran: No`.
+2. `payload:migrate` reapplied `20260922_074043_initial`.
+3. The final status returned batch 1, `Ran: Yes`.
+
+The branch expires automatically on 2026-09-24.
+
+### Neon point-in-time recovery
+
+Created disposable branch `phase0-pitr-20260923` from a historical timestamp of the default production branch. On the recovered branch:
+
+- the initial migration was present as batch 1, `Ran: Yes`;
+- the historical admin user was present, confirmed by the idempotent bootstrap refusing to create a second user.
+
+This verifies branch-from-timestamp recovery without modifying production. The recovery branch expires automatically on 2026-09-24.
+
+### Legacy proposal files
+
+The two untracked files at repository root serve different historical purposes:
+
+- `DE_XUAT_PHUONG_AN_NANG_CAP_WEBSITE.md` is the original implementation proposal and roadmap.
+- `DE_XUAT_PHUONG_AN_NANG_CAP_WEBSITE_v2_FEEDBACK.md` is a review memo for v2, not a newer complete proposal.
+
+They were preserved because they are user-owned, untracked files. Since the feedback was incorporated into v3/v4, the v2 feedback file can be deleted or archived first. The original proposal can also be archived once v4 is copied into the repository as the canonical plan.
