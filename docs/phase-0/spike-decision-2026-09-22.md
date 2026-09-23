@@ -1,8 +1,9 @@
 # Phase 0 — Payload/Next.js spike decision
 
 Date checked: 2026-09-22  
+Phase 0 closed: 2026-09-23
 Baseline commit: `cb51bb3`  
-Selected spike commit: `7f7b57f` on `codex/spike-payload-next16`
+Selected spike commits: `7f7b57f`, `d4d1f3d` (integrated as `b82134f`, `73ad325`)
 
 ## Decision
 
@@ -53,18 +54,27 @@ After `npm audit fix`, the selected spike has seven non-high findings: one low a
 
 These must be rechecked before production launch and whenever Payload is upgraded. They do not justify selecting the Next 15 branch, which has materially worse critical/high exposure.
 
-## Still required to close Phase 0
+## Phase 0 completion
 
-The repository does not contain a Neon `DATABASE_URL`, so the following acceptance checks cannot be performed yet:
+Phase 0 is complete on branch `codex/v2-phase0`.
 
-1. connect the selected spike to a disposable Neon development branch;
-2. generate and apply the first migration;
-3. create the initial admin account;
-4. create, read, update, and delete one `spike-pages` record through Payload;
-5. confirm persistence after a restart and record migration rollback/restore behavior.
+- Linked Neon project `orange-wave-77862035`, branch `production`.
+- Installed the Neon project skills and MCP configuration requested by the project setup guide.
+- Added the minimal `neon.ts` policy and ran `neon deploy`; Neon reported that the branch already matched the policy.
+- Stored pooled and direct connection strings only in ignored `.env.local`; no database credential or Payload secret is tracked by Git.
+- Generated and applied `20260922_074043_initial`; `payload:migrate:status` reports batch 1, `Ran: Yes`.
+- Created the initial Payload administrator. A second bootstrap run correctly skipped creation because the users collection was no longer empty.
+- Ran a create/read/update/delete verification against `spike-pages`; the temporary record was deleted and the check passed.
+- Re-ran typecheck, lint, and the Next.js production build in the integrated working directory; all passed.
+- Production routes include the existing public site, `/admin/[[...segments]]`, and `/api/[[...slug]]`.
 
-Do not commit the connection string or `PAYLOAD_SECRET`. Put them in the local environment or the deployment environment only.
+The application uses the pooled `DATABASE_URL`. Migration scripts now deliberately replace it with `DATABASE_URL_UNPOOLED`, following Neon guidance for schema operations. The first migration had already succeeded before this guard was added; its recorded status was subsequently verified through the direct connection.
 
-## Next action
+The remaining dependency audit result is unchanged: zero critical/high findings, six moderate, and one low. These exceptions remain recorded above and must be rechecked on each Payload upgrade and before production launch.
 
-Provide/configure a disposable Neon connection string and a long random `PAYLOAD_SECRET` for the spike environment. Once the five checks above pass, merge or cherry-pick the selected spike into `codex/v2-phase0`, remove the rejected worktree, and mark Phase 0 complete.
+## Operational notes
+
+- Admin email and the generated one-time password are stored only in `.env.local` as `PAYLOAD_ADMIN_EMAIL` and `PAYLOAD_ADMIN_PASSWORD`.
+- Change the initial admin password after first login, then remove `PAYLOAD_ADMIN_PASSWORD` from the local environment if the bootstrap script is no longer needed.
+- The connection string was shared in the task conversation. Rotate the Neon database password after confirming access, then run `neon env pull` again.
+- The generated Neon MCP key has account-wide access. Revoke or replace it with a narrower credential when the MCP integration is not needed.

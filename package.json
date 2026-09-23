@@ -12,6 +12,9 @@
     "payload:generate-importmap": "payload generate:importmap",
     "payload:bootstrap-admin": "tsx scripts/bootstrap-admin.ts",
     "payload:verify-phase0": "tsx scripts/verify-phase0.ts",
+    "payload:migrate": "tsx scripts/run-payload-migration.ts migrate",
+    "payload:migrate:create": "tsx scripts/run-payload-migration.ts migrate:create",
+    "payload:migrate:status": "tsx scripts/run-payload-migration.ts migrate:status",
     "typecheck": "tsc --noEmit",
     "lint": "eslint ."
   },
