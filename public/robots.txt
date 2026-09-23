@@ -1,5 +1,0 @@
-// File: public/robots.txt
-User-agent: *
-Allow: /
-
-Sitemap: https://infratek.vn/sitemap.xml

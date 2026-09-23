@@ -17,6 +17,8 @@ import { CTASection } from "@/components/layout/cta-section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { JsonLd } from "@/components/seo/json-ld";
+import { absoluteUrl, createPageMetadata } from "@/lib/seo";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -30,10 +32,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { slug } = await params;
   const cs = getCaseStudyBySlug(slug);
   if (!cs) return { title: "Case Study Not Found" };
-  return {
+  return createPageMetadata({
     title: cs.title,
     description: cs.summary,
-  };
+    path: `/case-studies/${cs.slug}`,
+  });
 }
 
 export default async function CaseStudyDetailPage({ params }: PageProps) {
@@ -48,6 +51,17 @@ export default async function CaseStudyDetailPage({ params }: PageProps) {
 
   return (
     <>
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "BreadcrumbList",
+          itemListElement: [
+            { "@type": "ListItem", position: 1, name: "Trang chủ", item: absoluteUrl("/") },
+            { "@type": "ListItem", position: 2, name: "Case Studies", item: absoluteUrl("/case-studies") },
+            { "@type": "ListItem", position: 3, name: cs.title, item: absoluteUrl(`/case-studies/${cs.slug}`) },
+          ],
+        }}
+      />
       {/* Hero Banner */}
       <section
         className={`relative overflow-hidden bg-gradient-to-br ${cs.coverGradient} pb-20 pt-32`}

@@ -14,6 +14,14 @@ import { BlogCard } from "@/components/blog/blog-card";
 import { FadeIn } from "@/components/shared/fade-in";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
+import { JsonLd } from "@/components/seo/json-ld";
+import {
+  absoluteUrl,
+  createPageMetadata,
+  defaultOgImage,
+  structuredDate,
+} from "@/lib/seo";
+import { company } from "@/data/company";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -30,14 +38,21 @@ export async function generateMetadata({
   const post = getPostBySlug(slug);
   if (!post) return { title: "Post Not Found" };
   return {
-    title: post.title,
-    description: post.excerpt,
+    ...createPageMetadata({
+      title: post.title,
+      description: post.excerpt,
+      path: `/blog/${post.slug}`,
+      type: "article",
+    }),
     openGraph: {
       title: post.title,
       description: post.excerpt,
       type: "article",
+      url: absoluteUrl(`/blog/${post.slug}`),
       publishedTime: post.publishedAt,
+      modifiedTime: post.updatedAt,
       authors: [post.author.name],
+      images: [defaultOgImage],
     },
   };
 }
@@ -51,6 +66,32 @@ export default async function BlogPostPage({ params }: PageProps) {
 
   return (
     <>
+      <JsonLd
+        data={[
+          {
+            "@context": "https://schema.org",
+            "@type": "Article",
+            headline: post.title,
+            description: post.excerpt,
+            datePublished: structuredDate(post.publishedAt),
+            dateModified: structuredDate(post.updatedAt || post.publishedAt),
+            mainEntityOfPage: absoluteUrl(`/blog/${post.slug}`),
+            image: absoluteUrl(defaultOgImage.url),
+            author: { "@type": "Person", name: post.author.name },
+            publisher: { "@type": "Organization", name: company.name, "@id": absoluteUrl("/#organization") },
+            inLanguage: "vi-VN",
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              { "@type": "ListItem", position: 1, name: "Trang chủ", item: absoluteUrl("/") },
+              { "@type": "ListItem", position: 2, name: "Blog", item: absoluteUrl("/blog") },
+              { "@type": "ListItem", position: 3, name: post.title, item: absoluteUrl(`/blog/${post.slug}`) },
+            ],
+          },
+        ]}
+      />
       <ReadingProgress />
 
       <article className="pb-20 pt-28">

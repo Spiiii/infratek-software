@@ -3,8 +3,6 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ClipboardCheck,
   ChevronRight,
@@ -13,17 +11,14 @@ import {
   Sparkles,
 } from "lucide-react";
 import { assessmentQuestions, calculateAssessmentResult } from "@/data/assessment";
-import { leadCaptureSchema, type LeadCaptureValues } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { AssessmentResult } from "@/types";
 
-type Step = "intro" | "questions" | "lead" | "result";
+type Step = "intro" | "questions" | "result";
 
 const levelLabels = {
   beginner: { label: "Mới bắt đầu", color: "bg-slate-100 text-slate-700" },
@@ -39,20 +34,10 @@ export function AIReadinessAssessment() {
   const [selected, setSelected] = useState<number | null>(null);
   const [result, setResult] = useState<AssessmentResult | null>(null);
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<LeadCaptureValues>({
-    resolver: zodResolver(leadCaptureSchema),
-  });
-
   const progress =
     step === "questions"
       ? ((currentQ + (selected !== null ? 0.5 : 0)) / assessmentQuestions.length) * 100
-      : step === "lead"
-        ? 90
-        : step === "result"
+      : step === "result"
           ? 100
           : 0;
 
@@ -65,7 +50,8 @@ export function AIReadinessAssessment() {
     if (currentQ < assessmentQuestions.length - 1) {
       setCurrentQ(currentQ + 1);
     } else {
-      setStep("lead");
+      setResult(calculateAssessmentResult(newScores));
+      setStep("result");
     }
   };
 
@@ -75,14 +61,6 @@ export function AIReadinessAssessment() {
       setScores(scores.slice(0, -1));
       setSelected(null);
     }
-  };
-
-  const onLeadSubmit = (data: LeadCaptureValues) => {
-    // In production: send lead to API
-    console.log("Lead captured:", data);
-    const assessmentResult = calculateAssessmentResult(scores);
-    setResult(assessmentResult);
-    setStep("result");
   };
 
   const reset = () => {
@@ -197,53 +175,6 @@ export function AIReadinessAssessment() {
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
-            </motion.div>
-          )}
-
-          {step === "lead" && (
-            <motion.div
-              key="lead"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-            >
-              <h3 className="mb-2 text-lg font-semibold text-navy">
-                Nhận báo cáo chi tiết
-              </h3>
-              <p className="mb-6 text-sm text-text-secondary">
-                Để lại thông tin để nhận AI Readiness Score và khuyến nghị cá nhân hóa.
-              </p>
-              <form onSubmit={handleSubmit(onLeadSubmit)} className="space-y-4">
-                <div>
-                  <Label htmlFor="name">Họ và tên *</Label>
-                  <Input id="name" className="mt-1.5" {...register("name")} />
-                  {errors.name && (
-                    <p className="mt-1 text-xs text-red-500">{errors.name.message}</p>
-                  )}
-                </div>
-                <div>
-                  <Label htmlFor="email">Email *</Label>
-                  <Input id="email" type="email" className="mt-1.5" {...register("email")} />
-                  {errors.email && (
-                    <p className="mt-1 text-xs text-red-500">{errors.email.message}</p>
-                  )}
-                </div>
-                <div>
-                  <Label htmlFor="company">Công ty *</Label>
-                  <Input id="company" className="mt-1.5" {...register("company")} />
-                  {errors.company && (
-                    <p className="mt-1 text-xs text-red-500">{errors.company.message}</p>
-                  )}
-                </div>
-                <div>
-                  <Label htmlFor="phone">Số điện thoại</Label>
-                  <Input id="phone" className="mt-1.5" {...register("phone")} />
-                </div>
-                <Button type="submit" className="w-full" size="lg">
-                  Xem kết quả
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </form>
             </motion.div>
           )}
 

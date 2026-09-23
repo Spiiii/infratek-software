@@ -2,7 +2,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Download, FileText, CheckSquare, File } from "lucide-react";
+import { FileText, CheckSquare, File } from "lucide-react";
 import { downloadResources } from "@/data/technologies";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -46,15 +46,9 @@ export function DownloadCenter() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => {
-                      // Production: trigger actual download
-                      alert(
-                        `Tải xuống "${resource.title}" — vui lòng liên hệ trong.ngo@infratek.vn để nhận tài liệu.`
-                      );
-                    }}
+                    disabled
                   >
-                    <Download className="h-3.5 w-3.5" />
-                    Tải xuống
+                    Sắp có
                   </Button>
                 </div>
               </CardContent>

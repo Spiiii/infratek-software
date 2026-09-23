@@ -27,18 +27,3 @@ export const contactFormSchema = z.object({
 });
 
 export type ContactFormValues = z.infer<typeof contactFormSchema>;
-
-export const newsletterSchema = z.object({
-  email: z.string().email("Email không hợp lệ"),
-});
-
-export type NewsletterValues = z.infer<typeof newsletterSchema>;
-
-export const leadCaptureSchema = z.object({
-  name: z.string().min(2, "Họ tên phải có ít nhất 2 ký tự"),
-  email: z.string().email("Email không hợp lệ"),
-  company: z.string().min(2, "Tên công ty phải có ít nhất 2 ký tự"),
-  phone: z.string().optional(),
-});
-
-export type LeadCaptureValues = z.infer<typeof leadCaptureSchema>;

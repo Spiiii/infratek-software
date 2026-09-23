@@ -4,11 +4,13 @@ import { Mail, Phone, MapPin, User } from "lucide-react";
 import { company } from "@/data/company";
 import { ContactForm } from "@/components/contact/contact-form";
 import { FadeIn } from "@/components/shared/fade-in";
+import { createPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = createPageMetadata({
   title: "Liên hệ",
   description: `Liên hệ ${company.name} — ${company.director}, ${company.email}, ${company.phone}. ${company.fullAddress}`,
-};
+  path: "/contact",
+});
 
 export default function ContactPage() {
   return (

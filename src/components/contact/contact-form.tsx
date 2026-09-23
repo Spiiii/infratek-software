@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 
 export function ContactForm() {
+  const [website, setWebsite] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -33,9 +34,12 @@ export function ContactForm() {
     setSubmitError("");
 
     try {
-      const response = await fetch("https://formspree.io/f/xnjenaqd", {
+      const response = await fetch("/api/contact", {
         method: "POST",
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...data,
+          website,
+        }),
         headers: {
            "Content-Type": "application/json",
            Accept: "application/json", 
@@ -89,6 +93,18 @@ export function ContactForm() {
       onSubmit={handleSubmit(onSubmit)}
       className="rounded-2xl border border-white/20 bg-white/80 p-6 shadow-elevated backdrop-blur-xl sm:p-8"
     >
+      <div className="absolute -left-[10000px] h-px w-px overflow-hidden" aria-hidden="true">
+        <Label htmlFor="website">Website</Label>
+        <Input
+          id="website"
+          name="website"
+          type="text"
+          tabIndex={-1}
+          autoComplete="off"
+          value={website}
+          onChange={(event) => setWebsite(event.target.value)}
+        />
+      </div>
       <h3 className="mb-6 text-xl font-bold text-navy">Gửi tin nhắn</h3>
 
       <div className="grid gap-5 sm:grid-cols-2">

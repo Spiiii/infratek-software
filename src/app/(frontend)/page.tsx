@@ -15,9 +15,14 @@ import { AIReadinessAssessment } from "@/components/features/ai-readiness-assess
 import { DownloadCenter } from "@/components/features/download-center";
 import { InnovationLab } from "@/components/features/innovation-lab";
 import { company } from "@/data/company";
+import { createPageMetadata } from "@/lib/seo";
 export const metadata: Metadata = {
-  title: `${company.name} — ${company.tagline}`,
-  description: company.missionVi,
+  ...createPageMetadata({
+    title: `${company.name} — ${company.tagline}`,
+    description: company.missionVi,
+    path: "/",
+  }),
+  title: { absolute: `${company.name} — ${company.tagline}` },
 };
 export default function HomePage() {
   return (

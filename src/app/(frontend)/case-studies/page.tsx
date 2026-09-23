@@ -7,12 +7,14 @@ import { FadeIn } from "@/components/shared/fade-in";
 import { CTASection } from "@/components/layout/cta-section";
 import { Badge } from "@/components/ui/badge";
 import { AnimatedCounter } from "@/components/shared/animated-counter";
+import { createPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = createPageMetadata({
   title: "Case Studies",
   description:
     "Khám phá các dự án AI thực tế: Camera AI, OCR Document Intelligence, Interview AI và PMS — kết quả đo lường được.",
-};
+  path: "/case-studies",
+});
 
 export default function CaseStudiesPage() {
   return (

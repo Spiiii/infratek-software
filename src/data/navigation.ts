@@ -36,15 +36,10 @@ export const footerNav = {
     { title: "Digital Transformation", href: "/solutions#digital-transformation" },
   ],
   company: [
-    { title: "Về chúng tôi", href: "/#about" },
+    // TODO(Phase 2): add "Về chúng tôi" when /about is available.
     { title: "Case Studies", href: "/case-studies" },
     { title: "Blog", href: "/blog" },
     { title: "Liên hệ", href: "/contact" },
   ],
-  resources: [
-    { title: "AI Whitepaper", href: "/#download" },
-    { title: "OCR Guide", href: "/#download" },
-    { title: "Enterprise AI Checklist", href: "/#download" },
-    { title: "Company Profile", href: "/#download" },
-  ],
+  // TODO(Phase 2): restore resource links when /resources is available.
 };

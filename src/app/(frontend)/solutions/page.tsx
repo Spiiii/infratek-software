@@ -17,12 +17,14 @@ import { FadeIn } from "@/components/shared/fade-in";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { createPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = createPageMetadata({
   title: "Giải pháp AI & Software",
   description:
     "AI Consulting, Software Development, IT Outsourcing và Digital Transformation — giải pháp toàn diện cho doanh nghiệp.",
-};
+  path: "/solutions",
+});
 
 const iconMap = {
   Brain,

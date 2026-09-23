@@ -1,8 +1,49 @@
 import { Resend } from "resend";
 import { contactFormSchema } from "@/lib/validations";
 
+const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+const RATE_LIMIT_MAX_REQUESTS = 5;
+const requestsByClient = new Map<string, number[]>();
+
+function getClientKey(request: Request) {
+  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  return forwarded || request.headers.get("x-real-ip") || "unknown";
+}
+
+function isRateLimited(key: string, now = Date.now()) {
+  const cutoff = now - RATE_LIMIT_WINDOW_MS;
+  const recent = (requestsByClient.get(key) || []).filter((time) => time > cutoff);
+
+  if (recent.length >= RATE_LIMIT_MAX_REQUESTS) {
+    requestsByClient.set(key, recent);
+    return true;
+  }
+
+  requestsByClient.set(key, [...recent, now]);
+  return false;
+}
+
 export async function POST(request: Request) {
   try {
+    const clientKey = getClientKey(request);
+    if (isRateLimited(clientKey)) {
+      return Response.json(
+        { error: "Bạn đã gửi quá nhiều yêu cầu. Vui lòng thử lại sau." },
+        { status: 429, headers: { "Retry-After": "600" } }
+      );
+    }
+
+    const body: unknown = await request.json();
+    if (
+      typeof body === "object" &&
+      body !== null &&
+      "website" in body &&
+      typeof body.website === "string" &&
+      body.website.trim().length > 0
+    ) {
+      return Response.json({ success: true });
+    }
+
     const apiKey = process.env.RESEND_API_KEY;
     if (!apiKey) {
       return Response.json(
@@ -11,7 +52,6 @@ export async function POST(request: Request) {
       );
     }
 
-    const body = await request.json();
     const parsed = contactFormSchema.safeParse(body);
 
     if (!parsed.success) {
