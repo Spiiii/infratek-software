@@ -3,8 +3,8 @@
 Date checked: 2026-09-24  
 Baseline checkpoint: `e7a20e4`  
 Implementation branch: `codex/phase-2-solutions-content`  
-Implementation commit (local): `9f9a262`  
-Status: **Chưa tự động đóng Giai đoạn 2** — title/description và cách xử lý placeholder đã được xác nhận; chờ bằng chứng kiểm thử Preview và chủ dự án quyết định đóng.
+Implementation commits: `9f9a262`, `5bdf547`, `420df36`  
+Status: **Chưa tự động đóng Giai đoạn 2** — mọi kiểm tra triển khai đã có bằng chứng; chờ chủ dự án xác nhận đóng.
 
 ## Mục tiêu
 
@@ -106,7 +106,11 @@ Sitemap render 30 URL. Script crawl toàn bộ URL trong sitemap và các `href`
 - HTML production build của từng solution có đúng một node `"@type":"Service"`.
 - Google Rich Results Test đã chạy bằng mã render đại diện: `https://search.google.com/test/rich-results/result?id=qyRc3vNxy92b97R_9Rbs6g`.
 - Kết quả: Google không phát hiện rich-result item. `Service` không phải loại rich result được công cụ Google hỗ trợ, nên kết quả này không kết luận schema sai; nó chỉ xác nhận không có Google rich-result tương ứng.
-- Cần kiểm tra lại URL Preview sau khi branch được push/deploy. Việc push chưa thực hiện vì cần chủ dự án cho phép xuất bản branch lên GitHub remote.
+- Branch đã push tại commit `420df36`; Vercel Preview deploy thành công tại `https://infratek-software-h1r3g0xpv-spi6.vercel.app`.
+- Rich Results Test đã chạy lại bằng URL thật `/solutions/ai-consulting`: `https://search.google.com/test/rich-results/result?id=9JTpWcd2srVD6qtMblKwMQ`.
+- Google tìm nạp trang thành công, cho phép crawl và phát hiện hai mục hợp lệ: `LocalBusiness` và `Organization`; cả hai chỉ có vấn đề không nghiêm trọng.
+- Công cụ ghi “không thể lập chỉ mục” vì Preview trả `X-Robots-Tag: noindex`. Đây là header của môi trường Preview, không phải lỗi tải trang hoặc lỗi structured data.
+- Vercel Authentication chỉ được tắt tạm thời để Google truy cập, sau đó đã bật lại. Kiểm tra cuối xác nhận URL lại trả `HTTP 302` tới Vercel SSO.
 
 ## Nội dung placeholder đã được chấp nhận đưa vào backlog
 
@@ -140,7 +144,7 @@ Danh sách theo dõi đầy đủ nằm tại `docs/CONTENT-BACKLOG.md`; các m�
 
 1. Nội dung thật cho placeholder vẫn cần hoàn thiện trước khi vận hành thương mại; đã được chấp nhận không chặn Giai đoạn 2 và theo dõi tại `docs/CONTENT-BACKLOG.md`.
 2. Rich Results Test không hỗ trợ loại `Service`; không được diễn giải “không phát hiện rich result” thành schema không hợp lệ.
-3. Chưa có bằng chứng kiểm thử URL Preview thật tại thời điểm cập nhật này.
+3. Preview có `X-Robots-Tag: noindex`, nên Rich Results Test không coi URL là có thể lập chỉ mục dù tải trang thành công; đây là thuộc tính của Preview, không áp dụng cho Production.
 4. Các technical debt ngoài phạm vi được giữ tại `docs/OPEN-ITEMS.md`.
 
 ## Checklist điều kiện hoàn thành Giai đoạn 2
@@ -154,7 +158,7 @@ Danh sách theo dõi đầy đủ nằm tại `docs/CONTENT-BACKLOG.md`; các m�
 - [x] `typecheck`, `lint`, `build` đạt.
 - [x] Chủ dự án chọn title/description cuối cùng cho bốn solution; metadata đã áp và kiểm tra production render.
 - [x] Chủ dự án xác nhận giữ placeholder, không chặn Giai đoạn 2; backlog được tách tại `docs/CONTENT-BACKLOG.md`.
-- [ ] Push/deploy Preview và kiểm tra lại trên URL công khai.
+- [x] Push/deploy Preview và kiểm tra lại bằng Rich Results Test trên URL thật; bảo vệ Preview đã được bật lại sau kiểm thử.
 - [ ] Chủ dự án xác nhận kết quả và quyết định đóng Giai đoạn 2.
 
 Không tự đánh dấu Giai đoạn 2 hoàn tất.
