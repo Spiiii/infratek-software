@@ -3,7 +3,7 @@
 Date checked: 2026-09-23  
 Baseline checkpoint: `1769a00`  
 Implementation branch: `codex/phase-1-seo-foundation`  
-Status: **Chưa tự động đóng Giai đoạn 1** — kiểm thử Preview đã đạt ở phía request; còn xác nhận email đã đến hộp thư và xác nhận đóng của chủ dự án.
+Status: **Đã đóng Giai đoạn 1 ngày 2026-09-24 theo xác nhận của chủ dự án**, với ngoại lệ giao email được hoãn xử lý như technical debt bên thứ ba.
 
 ## Mục tiêu
 
@@ -123,13 +123,14 @@ Kết quả URL thật: `https://search.google.com/test/rich-results/result?id=8
 - Preview deployment `EG2PizsenMqnjjohpkGNGXNFUrwU` đã được kiểm thử thật ngày 2026-09-24 với các biến môi trường Preview đã cấu hình;
 - `POST /api/contact` trả `HTTP 200` và `{"success":true}` cho đúng một request kiểm thử;
 - `/og-image` trên cùng Preview trả `HTTP 200`, `Content-Type: image/png`, kích thước response 90.176 byte;
-- việc email đã đến `CONTACT_RECIPIENT` còn chờ chủ dự án xác nhận trong hộp thư.
+- Resend chấp nhận request nhưng email không được giao: máy chủ nhận trả `SMTP 550 5.7.1 Sender address rejected: service unavailable` đối với envelope sender tại `rsend.infratek.vn`;
+- domain gửi `infratek.vn` đã Verified trong Resend, địa chỉ nhận đúng và API key có full access. Chủ dự án xác nhận hoãn xử lý lỗi giao thư vì lỗi xảy ra sau khi ứng dụng đã bàn giao request cho dịch vụ bên thứ ba.
 
 Vercel Authentication chỉ được tắt trong thời gian kiểm thử công khai. Sau khi hoàn tất, bảo vệ đã được bật lại và request không đăng nhập tới `/og-image` trả `HTTP 302` về Vercel SSO.
 
 ## Audit lỗi và việc còn tồn tại
 
-1. **Chờ xác nhận của chủ dự án:** kiểm tra hộp thư đích và xác nhận email test đã đến; phía Preview đã trả response thành công.
+1. **Technical debt đã được chấp nhận:** xử lý SMTP `550 5.7.1` trước khi website vận hành thật. Hướng ưu tiên là xác minh subdomain gửi riêng (ví dụ `send.infratek.vn`) và dùng địa chỉ sender thuộc subdomain đó, hoặc yêu cầu nhà cung cấp email cho phép Resend/Amazon SES. Cho đến khi xử lý, API có thể trả thành công khi Resend tiếp nhận nhưng email vẫn bounce bất đồng bộ.
 2. Article còn có thể bổ sung author URL khi có trang tác giả thật; Organization có thể bổ sung logo vuông đúng chuẩn khi có asset chính thức. Không dùng URL/logo giả để chỉ xóa warning tùy chọn.
 3. Rate limit in-memory không đáng tin hoàn toàn trên serverless; thay bằng Upstash Redis ở Giai đoạn 5.
 4. Nội dung metrics/case study hiện vẫn là dữ liệu giả định của website học tập. Phase 1 chỉ đảm bảo render và SEO kỹ thuật, không xác minh tính thật của số liệu; phân loại dữ liệu/case thuộc các giai đoạn sau.
@@ -148,9 +149,9 @@ Thay đổi duy nhất là `StatisticsSection` không còn trả HTML ban đầu
 - [x] `build`, `typecheck`, `lint` đạt.
 - [x] Các trang chính có metadata và structured data hợp lệ.
 - [x] Metrics đọc được khi JavaScript bị tắt.
-- [x] Form liên hệ gửi được trên Preview — API trả `HTTP 200` và `{"success":true}`; chủ dự án vẫn cần xác nhận email đã đến hộp thư.
+- [x] Form liên hệ gửi được trên Preview — API trả `HTTP 200` và `{"success":true}`; ngoại lệ bounce từ nhà cung cấp email đã được ghi nhận và hoãn xử lý.
 - [x] Không còn CTA giả tuyên bố đã lưu/đăng ký/tải file.
 - [x] Lighthouse SEO >= 90 trên trang chủ, `/solutions`, một case study và một bài blog (đều đạt 100).
-- [ ] Chủ dự án xác nhận kết quả và quyết định đóng Giai đoạn 1.
+- [x] Chủ dự án xác nhận kết quả và quyết định đóng Giai đoạn 1 ngày 2026-09-24 với ngoại lệ SMTP nêu trên.
 
-Không đánh dấu Giai đoạn 1 hoàn tất cho đến khi chủ dự án xác nhận email đã đến và quyết định đóng giai đoạn.
+Giai đoạn 1 được đóng theo xác nhận của chủ dự án. Ngoại lệ SMTP không chặn chuyển sang giai đoạn tiếp theo nhưng phải được xử lý và kiểm thử lại trạng thái `Delivered` trước khi website vận hành thật.
