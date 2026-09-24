@@ -10,7 +10,7 @@ export function Footer() {
   return (
     <footer className="border-t border-border bg-navy text-white">
       <div className="container-main">
-        <div className="grid gap-12 py-16 md:grid-cols-2 lg:grid-cols-3 lg:py-20">
+        <div className="grid gap-12 py-16 md:grid-cols-2 lg:grid-cols-4 lg:py-20">
           <div className="lg:col-span-1">
             <Link href="/" className="mb-6 flex items-center gap-2.5">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-primary">
@@ -65,6 +65,11 @@ export function Footer() {
                 </li>
               ))}
             </ul>
+          </div>
+
+          <div>
+            <h4 className="mb-4 text-sm font-semibold tracking-wide text-white/90 uppercase">Tài nguyên</h4>
+            <ul className="space-y-3">{footerNav.resources.map((item) => <li key={item.href}><Link href={item.href} className="group flex items-center gap-1 text-sm text-white/50 transition-colors hover:text-white">{item.title}<ArrowUpRight className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" /></Link></li>)}</ul>
           </div>
 
           <div>

@@ -14,16 +14,19 @@ import { ROICalculator } from "@/components/features/roi-calculator";
 import { AIReadinessAssessment } from "@/components/features/ai-readiness-assessment";
 import { DownloadCenter } from "@/components/features/download-center";
 import { InnovationLab } from "@/components/features/innovation-lab";
-import { company } from "@/data/company";
+import { getCompany } from "@/lib/content";
 import { createPageMetadata } from "@/lib/seo";
-export const metadata: Metadata = {
+export async function generateMetadata(): Promise<Metadata> {
+  const company = await getCompany();
+  return {
   ...createPageMetadata({
     title: `${company.name} — ${company.tagline}`,
     description: company.missionVi,
     path: "/",
   }),
   title: { absolute: `${company.name} — ${company.tagline}` },
-};
+  };
+}
 export default function HomePage() {
   return (
     <>

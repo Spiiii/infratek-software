@@ -1,9 +1,10 @@
 import { ImageResponse } from "next/og";
-import { company } from "@/data/company";
+import { getCompany } from "@/lib/content";
 
 export const dynamic = "force-static";
 
-export function GET() {
+export async function GET() {
+  const company = await getCompany();
   return new ImageResponse(
     (
       <div

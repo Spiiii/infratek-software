@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { blogPosts, getFeaturedPosts } from "@/data/blog";
+import { getPosts } from "@/lib/content";
 import { BlogCard } from "@/components/blog/blog-card";
 import { BlogExplorer } from "@/components/blog/blog-explorer";
 import { FadeIn } from "@/components/shared/fade-in";
@@ -12,8 +12,9 @@ const description =
 
 export const metadata: Metadata = createPageMetadata({ title, description, path: "/blog" });
 
-export default function BlogPage() {
-  const featured = getFeaturedPosts();
+export default async function BlogPage() {
+  const blogPosts = await getPosts();
+  const featured = blogPosts.filter((post) => post.featured);
   return (
     <>
       <section className="relative overflow-hidden pb-12 pt-32">

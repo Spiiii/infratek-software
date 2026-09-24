@@ -2,11 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Clock, Calendar, User } from "lucide-react";
-import {
-  blogPosts,
-  getPostBySlug,
-  getRelatedPosts,
-} from "@/data/blog";
+import { getCompany, getPostBySlug, getPosts } from "@/lib/content";
 import { MarkdownContent } from "@/components/blog/markdown-content";
 import { TableOfContents } from "@/components/blog/table-of-contents";
 import { ReadingProgress } from "@/components/blog/reading-progress";
@@ -21,21 +17,20 @@ import {
   defaultOgImage,
   structuredDate,
 } from "@/lib/seo";
-import { company } from "@/data/company";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
 export async function generateStaticParams() {
-  return blogPosts.map((p) => ({ slug: p.slug }));
+  return (await getPosts()).map((p) => ({ slug: p.slug }));
 }
 
 export async function generateMetadata({
   params,
 }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const post = getPostBySlug(slug);
+  const post = await getPostBySlug(slug);
   if (!post) return { title: "Post Not Found" };
   return {
     ...createPageMetadata({
@@ -59,10 +54,11 @@ export async function generateMetadata({
 
 export default async function BlogPostPage({ params }: PageProps) {
   const { slug } = await params;
-  const post = getPostBySlug(slug);
+  const post = await getPostBySlug(slug);
   if (!post) notFound();
 
-  const related = getRelatedPosts(post);
+  const [posts, company] = await Promise.all([getPosts(), getCompany()]);
+  const related = posts.filter((item) => item.slug !== post.slug && (item.category === post.category || item.tags.some((tag) => post.tags.includes(tag)))).slice(0, 3);
 
   return (
     <>

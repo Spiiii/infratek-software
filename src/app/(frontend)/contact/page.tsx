@@ -1,18 +1,22 @@
 // File: src/app/contact/page.tsx
 import type { Metadata } from "next";
 import { Mail, Phone, MapPin, User } from "lucide-react";
-import { company } from "@/data/company";
+import { getCompany } from "@/lib/content";
 import { ContactForm } from "@/components/contact/contact-form";
 import { FadeIn } from "@/components/shared/fade-in";
 import { createPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = createPageMetadata({
-  title: "Liên hệ",
-  description: `Liên hệ ${company.name} — ${company.director}, ${company.email}, ${company.phone}. ${company.fullAddress}`,
-  path: "/contact",
-});
+export async function generateMetadata(): Promise<Metadata> {
+  const company = await getCompany();
+  return createPageMetadata({
+    title: "Liên hệ",
+    description: `Liên hệ ${company.name} — ${company.director}, ${company.email}, ${company.phone}. ${company.fullAddress}`,
+    path: "/contact",
+  });
+}
 
-export default function ContactPage() {
+export default async function ContactPage() {
+  const company = await getCompany();
   return (
     <>
       <section className="relative overflow-hidden pb-16 pt-32">

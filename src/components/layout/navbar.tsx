@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, ArrowRight } from "lucide-react";
+import { Menu, X, ArrowRight, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { mainNav } from "@/data/navigation";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ export function Navbar() {
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [mobileGroup, setMobileGroup] = useState<string | null>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -60,27 +61,13 @@ export function Navbar() {
               item.href === "/"
                 ? pathname === "/"
                 : pathname.startsWith(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "relative rounded-lg px-4 py-2 text-sm font-medium transition-colors",
-                  isActive
-                    ? "text-primary"
-                    : "text-text-secondary hover:text-navy"
-                )}
-              >
-                {item.title}
-                {isActive && (
-                  <motion.div
-                    layoutId="nav-indicator"
-                    className="absolute inset-x-2 -bottom-0.5 h-0.5 rounded-full bg-gradient-primary"
-                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
-                  />
-                )}
+            return <div key={item.href} className="group relative">
+              <Link href={item.href} className={cn("relative flex items-center gap-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors", isActive ? "text-primary" : "text-text-secondary hover:text-navy")}>
+                {item.title}{item.children && <ChevronDown className="h-3.5 w-3.5" />}
+                {isActive && <motion.div layoutId="nav-indicator" className="absolute inset-x-2 -bottom-0.5 h-0.5 rounded-full bg-gradient-primary" transition={{ type: "spring", stiffness: 380, damping: 30 }} />}
               </Link>
-            );
+              {item.children && <div className="invisible absolute left-0 top-full z-50 min-w-64 translate-y-2 rounded-xl border border-border bg-white p-2 opacity-0 shadow-elevated transition-all group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100">{item.children.map((child) => <Link key={child.href} href={child.href} className="block rounded-lg px-3 py-2.5 text-sm text-text-secondary hover:bg-surface-light hover:text-navy">{child.title}</Link>)}</div>}
+            </div>;
           })}
         </div>
 
@@ -124,23 +111,22 @@ export function Navbar() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.05 }}
                   >
-                    <Link
-                      href={item.href}
-                      onClick={() => setMobileOpen(false)}
+                    <div
                       className={cn(
-                        "flex flex-col rounded-xl px-4 py-3 transition-colors",
+                        "rounded-xl transition-colors",
                         isActive
                           ? "bg-primary/5 text-primary"
                           : "text-navy hover:bg-surface-light"
                       )}
                     >
-                      <span className="text-sm font-semibold">{item.title}</span>
-                      {item.description && (
+                      <div className="flex items-center gap-1 px-4 py-3"><Link href={item.href} onClick={() => setMobileOpen(false)} className="flex-1"><span className="text-sm font-semibold">{item.title}</span></Link>{item.children && <button type="button" aria-label={`Mở menu ${item.title}`} aria-expanded={mobileGroup === item.href} onClick={() => setMobileGroup(mobileGroup === item.href ? null : item.href)} className="p-2"><ChevronDown className={cn("h-4 w-4 transition-transform", mobileGroup === item.href && "rotate-180")} /></button>}</div>
+                      {item.description && !item.children && (
                         <span className="mt-0.5 text-xs text-text-secondary">
                           {item.description}
                         </span>
                       )}
-                    </Link>
+                      {item.children && mobileGroup === item.href && <div className="border-t border-border/60 px-3 py-2">{item.children.map((child) => <Link key={child.href} href={child.href} onClick={() => setMobileOpen(false)} className="block rounded-lg px-3 py-2 text-sm text-text-secondary hover:bg-white">{child.title}</Link>)}</div>}
+                    </div>
                   </motion.div>
                 );
               })}

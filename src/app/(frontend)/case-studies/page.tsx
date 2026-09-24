@@ -2,7 +2,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { caseStudies } from "@/data/case-studies";
+import { getCaseStudies } from "@/lib/content";
 import { FadeIn } from "@/components/shared/fade-in";
 import { CTASection } from "@/components/layout/cta-section";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,8 @@ export const metadata: Metadata = createPageMetadata({
   path: "/case-studies",
 });
 
-export default function CaseStudiesPage() {
+export default async function CaseStudiesPage() {
+  const caseStudies = await getCaseStudies();
   return (
     <>
       <section className="relative overflow-hidden pb-16 pt-32">

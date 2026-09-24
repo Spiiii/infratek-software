@@ -10,6 +10,21 @@ export const mainNav: NavItem[] = [
     title: "Giải pháp",
     href: "/solutions",
     description: "AI Consulting, Software Development, IT Outsourcing & Digital Transformation",
+    children: [
+      { title: "AI Consulting", href: "/solutions/ai-consulting" },
+      { title: "Software Development", href: "/solutions/software-development" },
+      { title: "IT Outsourcing", href: "/solutions/it-outsourcing" },
+      { title: "Digital Transformation", href: "/solutions/digital-transformation" },
+    ],
+  },
+  {
+    title: "Công cụ",
+    href: "/tools/roi-calculator",
+    description: "ROI Calculator và AI Readiness Assessment",
+    children: [
+      { title: "ROI Calculator", href: "/tools/roi-calculator" },
+      { title: "AI Readiness", href: "/tools/ai-readiness" },
+    ],
   },
   {
     title: "Case Studies",
@@ -30,16 +45,22 @@ export const mainNav: NavItem[] = [
 
 export const footerNav = {
   solutions: [
-    { title: "AI Consulting", href: "/solutions#ai-consulting" },
-    { title: "Software Development", href: "/solutions#software-development" },
-    { title: "IT Outsourcing", href: "/solutions#it-outsourcing" },
-    { title: "Digital Transformation", href: "/solutions#digital-transformation" },
+    { title: "AI Consulting", href: "/solutions/ai-consulting" },
+    { title: "Software Development", href: "/solutions/software-development" },
+    { title: "IT Outsourcing", href: "/solutions/it-outsourcing" },
+    { title: "Digital Transformation", href: "/solutions/digital-transformation" },
   ],
   company: [
-    // TODO(Phase 2): add "Về chúng tôi" when /about is available.
+    { title: "Về chúng tôi", href: "/about" },
+    { title: "Đội ngũ", href: "/about/team" },
     { title: "Case Studies", href: "/case-studies" },
     { title: "Blog", href: "/blog" },
     { title: "Liên hệ", href: "/contact" },
   ],
-  // TODO(Phase 2): restore resource links when /resources is available.
+  resources: [
+    { title: "Tài nguyên", href: "/resources" },
+    { title: "AI Innovation Lab", href: "/ai-lab" },
+    { title: "ROI Calculator", href: "/tools/roi-calculator" },
+    { title: "AI Readiness", href: "/tools/ai-readiness" },
+  ],
 };

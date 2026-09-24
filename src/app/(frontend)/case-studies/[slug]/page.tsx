@@ -9,7 +9,7 @@ import {
   Building2,
   Calendar,
 } from "lucide-react";
-import { caseStudies, getCaseStudyBySlug } from "@/data/case-studies";
+import { getCaseStudies, getCaseStudyBySlug } from "@/lib/content";
 import { MetricCards } from "@/components/case-studies/metric-cards";
 import { ArchitectureDiagram } from "@/components/case-studies/architecture-diagram";
 import { FadeIn } from "@/components/shared/fade-in";
@@ -25,12 +25,12 @@ interface PageProps {
 }
 
 export async function generateStaticParams() {
-  return caseStudies.map((cs) => ({ slug: cs.slug }));
+  return (await getCaseStudies()).map((cs) => ({ slug: cs.slug }));
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const cs = getCaseStudyBySlug(slug);
+  const cs = await getCaseStudyBySlug(slug);
   if (!cs) return { title: "Case Study Not Found" };
   return createPageMetadata({
     title: cs.title,
@@ -41,9 +41,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function CaseStudyDetailPage({ params }: PageProps) {
   const { slug } = await params;
-  const cs = getCaseStudyBySlug(slug);
+  const cs = await getCaseStudyBySlug(slug);
   if (!cs) notFound();
 
+  const caseStudies = await getCaseStudies();
   const currentIndex = caseStudies.findIndex((c) => c.slug === slug);
   const prev = currentIndex > 0 ? caseStudies[currentIndex - 1] : null;
   const next =

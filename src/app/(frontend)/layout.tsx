@@ -2,13 +2,15 @@ import type { Metadata } from "next";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { company } from "@/data/company";
+import { getCompany } from "@/lib/content";
 import { JsonLd } from "@/components/seo/json-ld";
 import { absoluteUrl, defaultOgImage } from "@/lib/seo";
 import Script from "next/script";
 import "./globals.css";
 
-export const metadata: Metadata = {
+export async function generateMetadata(): Promise<Metadata> {
+  const company = await getCompany();
+  return {
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL || "https://infratek.vn"
   ),
@@ -54,13 +56,15 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
-};
+  };
+}
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const company = await getCompany();
   const analyticsId = process.env.NEXT_PUBLIC_GA_ID;
   const organizationId = absoluteUrl("/#organization");
 
