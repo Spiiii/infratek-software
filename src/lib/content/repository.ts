@@ -18,12 +18,37 @@ const relatedCases: Record<string, string[]> = {
   "digital-transformation": ["ocr-document-intelligence", "camera-ai-transformation"],
 };
 
+const solutionSeo: Record<string, { title: string; description: string }> = {
+  "ai-consulting": {
+    title: "Tư vấn AI cho doanh nghiệp | Infratek Software",
+    description:
+      "Đánh giá mức độ sẵn sàng, xác định use case và xây dựng lộ trình ứng dụng AI phù hợp với mục tiêu doanh nghiệp.",
+  },
+  "software-development": {
+    title: "Phát triển phần mềm tích hợp AI cho doanh nghiệp | Infratek Software",
+    description:
+      "Thiết kế và phát triển web app, nền tảng phần mềm và hệ thống tích hợp AI theo nhu cầu doanh nghiệp.",
+  },
+  "it-outsourcing": {
+    title: "Dịch vụ IT Outsourcing cho doanh nghiệp | Infratek",
+    description:
+      "Bổ sung nhân sự kỹ thuật hoặc dedicated team để hỗ trợ phát triển và vận hành sản phẩm phần mềm.",
+  },
+  "digital-transformation": {
+    title: "Chuyển đổi số và tự động hóa bằng AI cho doanh nghiệp",
+    description:
+      "Số hóa tài liệu, tự động hóa quy trình và xây dựng nền tảng dữ liệu hỗ trợ vận hành doanh nghiệp.",
+  },
+};
+
 const solutionRecords: SolutionDomain[] = solutions.map((solution) => ({
   id: solution.id,
   slug: solution.slug,
   title: solution.title,
   shortTitle: solution.shortTitle,
   description: solution.description,
+  seoTitle: solutionSeo[solution.slug].title,
+  seoDescription: solutionSeo[solution.slug].description,
   icon: solution.icon,
   color: solution.color,
   quickAnswer: solution.solution,

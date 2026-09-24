@@ -19,6 +19,8 @@ export interface SolutionDomain {
   title: string;
   shortTitle: string;
   description: string;
+  seoTitle: string;
+  seoDescription: string;
   icon: string;
   color: string;
   quickAnswer: string;

@@ -4,7 +4,7 @@ Date checked: 2026-09-24
 Baseline checkpoint: `e7a20e4`  
 Implementation branch: `codex/phase-2-solutions-content`  
 Implementation commit (local): `9f9a262`  
-Status: **Chưa tự động đóng Giai đoạn 2** — chờ chủ dự án chọn title/description, xác nhận nội dung placeholder và quyết định push/deploy Preview.
+Status: **Chưa tự động đóng Giai đoạn 2** — title/description và cách xử lý placeholder đã được xác nhận; chờ bằng chứng kiểm thử Preview và chủ dự án quyết định đóng.
 
 ## Mục tiêu
 
@@ -58,13 +58,15 @@ Các khối chưa có dữ liệu mang `status: "placeholder"`; lớp repository
 ### Metadata và structured data
 
 - Mỗi solution có canonical, Open Graph/Twitter metadata riêng theo route.
-- Metadata hiện tạm dùng đúng tên và mô tả đang có trong source, không xem là lựa chọn SEO cuối cùng.
+- Metadata đã áp đúng phương án chủ dự án chọn ngày 2026-09-24. Title dùng giá trị tuyệt đối để không bị layout gắn lặp brand suffix.
 - Mỗi trang solution render một JSON-LD node `Service` riêng với `name`, `description`, `url`, `provider`, `areaServed` và `serviceType`.
 - Sitemap lấy dữ liệu qua repository và có đủ route mới.
 
-### Theo dõi technical debt
+### Theo dõi technical debt và backlog nội dung
 
 Tạo `docs/OPEN-ITEMS.md` để giữ ba mục đã xác nhận: xoay mật khẩu Neon, thay Neon MCP key account-wide và lỗi SMTP 550. File cũng ghi gate phải import/đối chiếu bản v4 đầy đủ trước Giai đoạn 3.
+
+Tạo riêng `docs/CONTENT-BACKLOG.md` để theo dõi toàn bộ placeholder của solution, case study còn thiếu, team và resource chưa có file thật. Chủ dự án xác nhận giữ placeholder và không dùng các mục này để chặn đóng Giai đoạn 2.
 
 ## Bằng chứng kiểm thử
 
@@ -75,6 +77,7 @@ Tạo `docs/OPEN-ITEMS.md` để giữ ba mục đã xác nhận: xoay mật kh�
 | `npm run typecheck` | Pass |
 | `npm run lint` | Pass |
 | `npm run build` | Pass, 36 trang được generate/prerender |
+| Metadata production render | Pass, title/description của 4 solution khớp lựa chọn; không có suffix lặp |
 | `git diff --check` | Pass |
 | Payload schema/collection diff từ `e7a20e4` | Không có |
 | App Router import trực tiếp `@/data/*` | Không có |
@@ -105,7 +108,7 @@ Sitemap render 30 URL. Script crawl toàn bộ URL trong sitemap và các `href`
 - Kết quả: Google không phát hiện rich-result item. `Service` không phải loại rich result được công cụ Google hỗ trợ, nên kết quả này không kết luận schema sai; nó chỉ xác nhận không có Google rich-result tương ứng.
 - Cần kiểm tra lại URL Preview sau khi branch được push/deploy. Việc push chưa thực hiện vì cần chủ dự án cho phép xuất bản branch lên GitHub remote.
 
-## Nội dung placeholder cần chủ dự án viết
+## Nội dung placeholder đã được chấp nhận đưa vào backlog
 
 Áp dụng cho cả bốn solution:
 
@@ -122,54 +125,23 @@ Placeholder riêng:
 - `/resources/[slug]`: chưa có file tải thật, tất cả đang ở trạng thái “Sắp có”.
 
 Không có số liệu, cam kết hoặc quy trình mới nào được tự viết thêm ngoài dữ liệu nguồn.
+Danh sách theo dõi đầy đủ nằm tại `docs/CONTENT-BACKLOG.md`; các mục này không chặn đóng Giai đoạn 2.
 
-## Phương án title/description cần chủ dự án chọn
+## Title/description đã chọn và áp dụng
 
-Các phương án dưới đây chỉ là đề xuất, chưa được áp vào metadata cuối cùng.
-
-### AI Consulting
-
-1. **Tư vấn AI cho doanh nghiệp | Infratek Software**  
-   Mô tả: Đánh giá mức độ sẵn sàng, xác định use case và xây dựng lộ trình ứng dụng AI phù hợp với mục tiêu doanh nghiệp.
-2. **Dịch vụ AI Consulting và lộ trình triển khai AI**  
-   Mô tả: Tư vấn chiến lược AI từ đánh giá dữ liệu, lựa chọn use case đến xây dựng roadmap và khung đo lường hiệu quả.
-3. **Chiến lược ứng dụng AI thực tiễn cho doanh nghiệp**  
-   Mô tả: Khám phá cách Infratek hỗ trợ doanh nghiệp đánh giá hiện trạng, ưu tiên cơ hội AI và chuẩn bị kế hoạch triển khai.
-
-### Software Development
-
-1. **Phát triển phần mềm tích hợp AI cho doanh nghiệp**  
-   Mô tả: Thiết kế và phát triển web app, nền tảng phần mềm và hệ thống tích hợp AI theo nhu cầu doanh nghiệp.
-2. **Dịch vụ Software Development AI-Native | Infratek**  
-   Mô tả: Xây dựng hệ thống từ kiến trúc, backend, frontend đến tích hợp AI, triển khai và hỗ trợ vận hành.
-3. **Xây dựng phần mềm doanh nghiệp và giải pháp AI**  
-   Mô tả: Dịch vụ phát triển phần mềm tùy chỉnh kết hợp năng lực full-stack, AI engineering và DevOps.
-
-### IT Outsourcing
-
-1. **IT Outsourcing và đội ngũ kỹ thuật theo nhu cầu**  
-   Mô tả: Mở rộng năng lực kỹ thuật với đội ngũ AI, full-stack và DevOps phù hợp với nhu cầu dự án.
-2. **Dịch vụ IT Outsourcing cho doanh nghiệp | Infratek**  
-   Mô tả: Bổ sung nhân sự kỹ thuật hoặc dedicated team để hỗ trợ phát triển và vận hành sản phẩm phần mềm.
-3. **Mở rộng đội ngũ phát triển phần mềm linh hoạt**  
-   Mô tả: Tiếp cận đội ngũ kỹ thuật theo mô hình phù hợp với năng lực nội bộ và phạm vi dự án của doanh nghiệp.
-
-### Digital Transformation
-
-1. **Chuyển đổi số và tự động hóa bằng AI cho doanh nghiệp**  
-   Mô tả: Số hóa tài liệu, tự động hóa quy trình và xây dựng nền tảng dữ liệu hỗ trợ vận hành doanh nghiệp.
-2. **Giải pháp Digital Transformation AI-First | Infratek**  
-   Mô tả: Tiếp cận chuyển đổi số từ đánh giá hiện trạng đến cải tiến quy trình, nền tảng dữ liệu và ứng dụng AI.
-3. **Giải pháp chuyển đổi số lấy AI làm trung tâm**  
-   Mô tả: Kết hợp tự động hóa, Document AI và hệ thống dữ liệu để hỗ trợ tối ưu hoạt động doanh nghiệp.
+| Solution | Title | Description |
+|---|---|---|
+| AI Consulting — phương án 1 | Tư vấn AI cho doanh nghiệp \| Infratek Software | Đánh giá mức độ sẵn sàng, xác định use case và xây dựng lộ trình ứng dụng AI phù hợp với mục tiêu doanh nghiệp. |
+| Software Development — phương án 1 + brand suffix | Phát triển phần mềm tích hợp AI cho doanh nghiệp \| Infratek Software | Thiết kế và phát triển web app, nền tảng phần mềm và hệ thống tích hợp AI theo nhu cầu doanh nghiệp. |
+| IT Outsourcing — phương án 2 | Dịch vụ IT Outsourcing cho doanh nghiệp \| Infratek | Bổ sung nhân sự kỹ thuật hoặc dedicated team để hỗ trợ phát triển và vận hành sản phẩm phần mềm. |
+| Digital Transformation — phương án 1 | Chuyển đổi số và tự động hóa bằng AI cho doanh nghiệp | Số hóa tài liệu, tự động hóa quy trình và xây dựng nền tảng dữ liệu hỗ trợ vận hành doanh nghiệp. |
 
 ## Audit lỗi và việc còn tồn tại
 
-1. Chờ chủ dự án chọn một title/description cho từng solution; metadata hiện tại chỉ là fallback trung lập từ dữ liệu cũ.
-2. Chờ nội dung thật cho các placeholder nêu trên.
-3. Rich Results Test không hỗ trợ loại `Service`; không được diễn giải “không phát hiện rich result” thành schema không hợp lệ.
-4. Chưa có Preview deployment vì branch chưa được phép push lên GitHub remote trong lượt thực hiện này.
-5. Các technical debt ngoài phạm vi được giữ tại `docs/OPEN-ITEMS.md`.
+1. Nội dung thật cho placeholder vẫn cần hoàn thiện trước khi vận hành thương mại; đã được chấp nhận không chặn Giai đoạn 2 và theo dõi tại `docs/CONTENT-BACKLOG.md`.
+2. Rich Results Test không hỗ trợ loại `Service`; không được diễn giải “không phát hiện rich result” thành schema không hợp lệ.
+3. Chưa có bằng chứng kiểm thử URL Preview thật tại thời điểm cập nhật này.
+4. Các technical debt ngoài phạm vi được giữ tại `docs/OPEN-ITEMS.md`.
 
 ## Checklist điều kiện hoàn thành Giai đoạn 2
 
@@ -180,8 +152,8 @@ Các phương án dưới đây chỉ là đề xuất, chưa được áp vào 
 - [x] Các trang không import trực tiếp `src/data`; dữ liệu đi qua lớp truy cập chung.
 - [x] URL case study/blog hiện có được bảo toàn.
 - [x] `typecheck`, `lint`, `build` đạt.
-- [ ] Chủ dự án chọn title/description cuối cùng cho bốn solution.
-- [ ] Chủ dự án xác nhận cách xử lý nội dung placeholder.
+- [x] Chủ dự án chọn title/description cuối cùng cho bốn solution; metadata đã áp và kiểm tra production render.
+- [x] Chủ dự án xác nhận giữ placeholder, không chặn Giai đoạn 2; backlog được tách tại `docs/CONTENT-BACKLOG.md`.
 - [ ] Push/deploy Preview và kiểm tra lại trên URL công khai.
 - [ ] Chủ dự án xác nhận kết quả và quyết định đóng Giai đoạn 2.
 

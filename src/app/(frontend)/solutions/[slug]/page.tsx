@@ -19,7 +19,10 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const solution = await getSolutionBySlug((await params).slug);
   if (!solution) return { title: "Solution Not Found" };
-  return createPageMetadata({ title: solution.title, description: solution.description, path: `/solutions/${solution.slug}` });
+  return {
+    ...createPageMetadata({ title: solution.seoTitle, description: solution.seoDescription, path: `/solutions/${solution.slug}` }),
+    title: { absolute: solution.seoTitle },
+  };
 }
 
 function PendingBlock({ note }: { note?: string }) {
