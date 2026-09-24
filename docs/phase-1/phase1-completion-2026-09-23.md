@@ -3,7 +3,7 @@
 Date checked: 2026-09-23  
 Baseline checkpoint: `1769a00`  
 Implementation branch: `codex/phase-1-seo-foundation`  
-Status: **Chưa tự động đóng Giai đoạn 1** — còn kiểm thử gửi email trên Preview và xác nhận của chủ dự án.
+Status: **Chưa tự động đóng Giai đoạn 1** — kiểm thử Preview đã đạt ở phía request; còn xác nhận email đã đến hộp thư và xác nhận đóng của chủ dự án.
 
 ## Mục tiêu
 
@@ -105,22 +105,34 @@ Kết quả tham chiếu: `https://search.google.com/test/rich-results/result?id
 
 Test ban đầu ghi cảnh báo không nghiêm trọng cho ngày chỉ có `YYYY-MM-DD`; source sau đó đã đổi sang ISO 8601 có timezone và HTML local xác nhận `2025-01-15T00:00:00+07:00`. Cảnh báo tùy chọn về author URL/logo chưa được xử lý vì chưa có trang tác giả và logo chuẩn dành cho schema.
 
+Ngày 2026-09-24, test URL được chạy lại trực tiếp trên Preview deployment sau khi tạm tắt Vercel Authentication:
+
+- URL kiểm tra: `https://infratek-software-git-codex-phase-1-seo-foundation-spi6.vercel.app/blog/enterprise-ai-adoption-roadmap-2025`;
+- Google phát hiện 4 loại dữ liệu có cấu trúc, mỗi loại có 1 mục hợp lệ: Article, Breadcrumb, Organization và Local Business;
+- Article, Organization và Local Business còn cảnh báo không nghiêm trọng cho các trường khuyến nghị;
+- Google báo không thể lập chỉ mục URL vì response Preview có `X-Robots-Tag: noindex`. Đây là hành vi dự kiến của môi trường Preview, không phải lỗi structured data.
+
+Kết quả URL thật: `https://search.google.com/test/rich-results/result?id=8YwbfdvSZtRkFaKniJWDVA`.
+
 ### Contact API
 
 - payload sai: `400`;
 - cùng client key, request 1–5 được xử lý và request 6: `429`;
 - honeypot có giá trị: `200 {"success":true}` và không gọi Resend;
-- frontend gọi đúng `/api/contact`.
+- frontend gọi đúng `/api/contact`;
+- Preview deployment `EG2PizsenMqnjjohpkGNGXNFUrwU` đã được kiểm thử thật ngày 2026-09-24 với các biến môi trường Preview đã cấu hình;
+- `POST /api/contact` trả `HTTP 200` và `{"success":true}` cho đúng một request kiểm thử;
+- `/og-image` trên cùng Preview trả `HTTP 200`, `Content-Type: image/png`, kích thước response 90.176 byte;
+- việc email đã đến `CONTACT_RECIPIENT` còn chờ chủ dự án xác nhận trong hộp thư.
 
-Chưa gửi email thật trên Preview vì repository chưa có `.vercel/project.json` và chưa có Preview URL trong workspace. Không gửi thử đến người nhận thật từ local để tránh tạo email ngoài ý muốn.
+Vercel Authentication chỉ được tắt trong thời gian kiểm thử công khai. Sau khi hoàn tất, bảo vệ đã được bật lại và request không đăng nhập tới `/og-image` trả `HTTP 302` về Vercel SSO.
 
 ## Audit lỗi và việc còn tồn tại
 
-1. **Chặn điều kiện hoàn thành:** cần deploy/nhận Preview URL có `RESEND_API_KEY` và `CONTACT_RECIPIENT`, gửi một form test thật, rồi xác nhận email tới hộp thư đích.
-2. Rerun Rich Results Test trên URL Preview sau deploy để xác nhận phiên bản timezone cuối cùng và asset `/og-image` từ Internet.
-3. Article còn có thể bổ sung author URL khi có trang tác giả thật; Organization có thể bổ sung logo vuông đúng chuẩn khi có asset chính thức. Không dùng URL/logo giả để chỉ xóa warning tùy chọn.
-4. Rate limit in-memory không đáng tin hoàn toàn trên serverless; thay bằng Upstash Redis ở Giai đoạn 5.
-5. Nội dung metrics/case study hiện vẫn là dữ liệu giả định của website học tập. Phase 1 chỉ đảm bảo render và SEO kỹ thuật, không xác minh tính thật của số liệu; phân loại dữ liệu/case thuộc các giai đoạn sau.
+1. **Chờ xác nhận của chủ dự án:** kiểm tra hộp thư đích và xác nhận email test đã đến; phía Preview đã trả response thành công.
+2. Article còn có thể bổ sung author URL khi có trang tác giả thật; Organization có thể bổ sung logo vuông đúng chuẩn khi có asset chính thức. Không dùng URL/logo giả để chỉ xóa warning tùy chọn.
+3. Rate limit in-memory không đáng tin hoàn toàn trên serverless; thay bằng Upstash Redis ở Giai đoạn 5.
+4. Nội dung metrics/case study hiện vẫn là dữ liệu giả định của website học tập. Phase 1 chỉ đảm bảo render và SEO kỹ thuật, không xác minh tính thật của số liệu; phân loại dữ liệu/case thuộc các giai đoạn sau.
 
 ### Làm rõ hai khối số liệu trang chủ
 
@@ -136,9 +148,9 @@ Thay đổi duy nhất là `StatisticsSection` không còn trả HTML ban đầu
 - [x] `build`, `typecheck`, `lint` đạt.
 - [x] Các trang chính có metadata và structured data hợp lệ.
 - [x] Metrics đọc được khi JavaScript bị tắt.
-- [ ] Form liên hệ gửi được trên Preview — local API đã đạt; còn cần Preview URL và xác nhận email nhận thật.
+- [x] Form liên hệ gửi được trên Preview — API trả `HTTP 200` và `{"success":true}`; chủ dự án vẫn cần xác nhận email đã đến hộp thư.
 - [x] Không còn CTA giả tuyên bố đã lưu/đăng ký/tải file.
 - [x] Lighthouse SEO >= 90 trên trang chủ, `/solutions`, một case study và một bài blog (đều đạt 100).
 - [ ] Chủ dự án xác nhận kết quả và quyết định đóng Giai đoạn 1.
 
-Không đánh dấu Giai đoạn 1 hoàn tất cho đến khi hai mục chưa chọn ở trên được xác nhận.
+Không đánh dấu Giai đoạn 1 hoàn tất cho đến khi chủ dự án xác nhận email đã đến và quyết định đóng giai đoạn.
