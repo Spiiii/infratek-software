@@ -141,6 +141,7 @@ export const caseStudies: CaseStudy[] = [
     featured: true,
     coverGradient: "from-blue-600 to-sky-400",
     year: "2024",
+    dataClassification: "illustrative",
   },
   {
     id: "ocr",
@@ -280,6 +281,7 @@ export const caseStudies: CaseStudy[] = [
     featured: true,
     coverGradient: "from-blue-700 to-blue-400",
     year: "2024",
+    dataClassification: "illustrative",
   },
   {
     id: "interview-ai",
@@ -418,6 +420,7 @@ export const caseStudies: CaseStudy[] = [
     featured: true,
     coverGradient: "from-sky-600 to-blue-500",
     year: "2023",
+    dataClassification: "illustrative",
   },
   {
     id: "pms",
@@ -555,6 +558,7 @@ export const caseStudies: CaseStudy[] = [
     featured: true,
     coverGradient: "from-blue-800 to-sky-500",
     year: "2023",
+    dataClassification: "illustrative",
   },
 ];
 

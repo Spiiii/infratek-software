@@ -61,6 +61,11 @@ export default async function CaseStudiesPage() {
                         <Badge className="border-white/20 bg-white/10 text-white/80 backdrop-blur-sm">
                           {cs.year}
                         </Badge>
+                        {cs.dataClassification === "illustrative" && (
+                          <Badge className="border-amber-200/40 bg-amber-100/20 text-amber-50 backdrop-blur-sm">
+                            Tình huống minh họa
+                          </Badge>
+                        )}
                       </div>
                       <h2 className="text-2xl font-bold text-white">{cs.title}</h2>
                       <p className="mt-1 text-sm text-white/70">{cs.client}</p>

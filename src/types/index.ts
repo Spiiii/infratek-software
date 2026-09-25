@@ -45,6 +45,7 @@ export interface CaseStudy {
   featured: boolean;
   coverGradient: string;
   year: string;
+  dataClassification: "verified" | "anonymized" | "illustrative";
 }
 
 export interface ArchitectureNode {

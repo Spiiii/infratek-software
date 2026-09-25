@@ -68,7 +68,13 @@ export interface Config {
   blocks: {};
   collections: {
     users: User;
-    'spike-pages': SpikePage;
+    media: Media;
+    solutions: Solution;
+    'case-studies': CaseStudy;
+    posts: Post;
+    pages: Page;
+    technologies: Technology;
+    authors: Author;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -77,7 +83,13 @@ export interface Config {
   collectionsJoins: {};
   collectionsSelect: {
     users: UsersSelect<false> | UsersSelect<true>;
-    'spike-pages': SpikePagesSelect<false> | SpikePagesSelect<true>;
+    media: MediaSelect<false> | MediaSelect<true>;
+    solutions: SolutionsSelect<false> | SolutionsSelect<true>;
+    'case-studies': CaseStudiesSelect<false> | CaseStudiesSelect<true>;
+    posts: PostsSelect<false> | PostsSelect<true>;
+    pages: PagesSelect<false> | PagesSelect<true>;
+    technologies: TechnologiesSelect<false> | TechnologiesSelect<true>;
+    authors: AuthorsSelect<false> | AuthorsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -87,8 +99,14 @@ export interface Config {
     defaultIDType: number;
   };
   fallbackLocale: null;
-  globals: {};
-  globalsSelect: {};
+  globals: {
+    'company-facts': CompanyFact;
+    faq: Faq;
+  };
+  globalsSelect: {
+    'company-facts': CompanyFactsSelect<false> | CompanyFactsSelect<true>;
+    faq: FaqSelect<false> | FaqSelect<true>;
+  };
   locale: null;
   widgets: {
     collections: CollectionsWidget;
@@ -123,7 +141,7 @@ export interface UserAuthOperations {
  */
 export interface User {
   id: number;
-  role: 'admin' | 'editor';
+  role: 'admin' | 'reviewer' | 'author';
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -146,9 +164,204 @@ export interface User {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "spike-pages".
+ * via the `definition` "media".
  */
-export interface SpikePage {
+export interface Media {
+  id: number;
+  altText: string;
+  caption?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  url?: string | null;
+  thumbnailURL?: string | null;
+  filename?: string | null;
+  mimeType?: string | null;
+  filesize?: number | null;
+  width?: number | null;
+  height?: number | null;
+  focalX?: number | null;
+  focalY?: number | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "solutions".
+ */
+export interface Solution {
+  id: number;
+  slug: string;
+  title: string;
+  shortTitle: string;
+  description: string;
+  seoTitle: string;
+  seoDescription: string;
+  icon: string;
+  color: string;
+  quickAnswer: string;
+  needSignals: string[];
+  deliverables: {
+    status: 'verified' | 'placeholder';
+    items?: string[] | null;
+    note?: string | null;
+  };
+  process: {
+    step: number;
+    title: string;
+    description: string;
+    id?: string | null;
+  }[];
+  outcomes: string[];
+  relatedCaseStudies?: (number | CaseStudy)[] | null;
+  audienceFit: {
+    status: 'verified' | 'placeholder';
+    items?: string[] | null;
+    note?: string | null;
+  };
+  timelineAndInvestment: {
+    status: 'verified' | 'placeholder';
+    items?: string[] | null;
+    note?: string | null;
+  };
+  faq: {
+    status: 'verified' | 'placeholder';
+    items?: string[] | null;
+    note?: string | null;
+  };
+  techStack?: string[] | null;
+  reviewState: 'editing' | 'in_review' | 'approved';
+  sourceHash?: string | null;
+  seededContentHash?: string | null;
+  sourceKey?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "case-studies".
+ */
+export interface CaseStudy {
+  id: number;
+  title: string;
+  slug: string;
+  industry: string;
+  year: string;
+  clientName: string;
+  clientDisplay: 'named' | 'anonymized';
+  dataClassification: 'verified' | 'anonymized' | 'illustrative';
+  tldr: string;
+  challenge: string;
+  solution: string;
+  architecture?:
+    | {
+        nodeId: string;
+        label: string;
+        nodeType: 'input' | 'process' | 'storage' | 'output' | 'ai';
+        description: string;
+        id?: string | null;
+      }[]
+    | null;
+  timeline?:
+    | {
+        step: number;
+        title: string;
+        description: string;
+        id?: string | null;
+      }[]
+    | null;
+  teamSize?: number | null;
+  results?:
+    | {
+        title: string;
+        description: string;
+        id?: string | null;
+      }[]
+    | null;
+  metrics?:
+    | {
+        value: number;
+        unit: string;
+        prefix?: string | null;
+        label: string;
+        howMeasured?: string | null;
+        measuredAt?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  media?: (number | Media)[] | null;
+  solutions?: (number | Solution)[] | null;
+  technologies?: (number | Technology)[] | null;
+  techStack?: string[] | null;
+  featured?: boolean | null;
+  coverGradient?: string | null;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  publishedAt?: string | null;
+  reviewState: 'editing' | 'in_review' | 'approved';
+  sourceHash?: string | null;
+  seededContentHash?: string | null;
+  sourceKey?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "technologies".
+ */
+export interface Technology {
+  id: number;
+  name: string;
+  slug: string;
+  category?: ('ai' | 'frontend' | 'backend' | 'cloud' | 'data' | 'devops') | null;
+  description?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "posts".
+ */
+export interface Post {
+  id: number;
+  slug: string;
+  title: string;
+  excerpt: string;
+  content: string;
+  category: string;
+  tags?: string[] | null;
+  author: number | Author;
+  publishedAt: string;
+  readingTime: number;
+  featured?: boolean | null;
+  coverImage?: (number | null) | Media;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  reviewState: 'editing' | 'in_review' | 'approved';
+  sourceHash?: string | null;
+  seededContentHash?: string | null;
+  sourceKey?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "authors".
+ */
+export interface Author {
+  id: number;
+  name: string;
+  slug: string;
+  role: string;
+  avatar?: (number | null) | Media;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "pages".
+ */
+export interface Page {
   id: number;
   title: string;
   slug: string;
@@ -168,8 +381,12 @@ export interface SpikePage {
     };
     [k: string]: unknown;
   } | null;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  reviewState: 'editing' | 'in_review' | 'approved';
   updatedAt: string;
   createdAt: string;
+  _status?: ('draft' | 'published') | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -200,8 +417,32 @@ export interface PayloadLockedDocument {
         value: number | User;
       } | null)
     | ({
-        relationTo: 'spike-pages';
-        value: number | SpikePage;
+        relationTo: 'media';
+        value: number | Media;
+      } | null)
+    | ({
+        relationTo: 'solutions';
+        value: number | Solution;
+      } | null)
+    | ({
+        relationTo: 'case-studies';
+        value: number | CaseStudy;
+      } | null)
+    | ({
+        relationTo: 'posts';
+        value: number | Post;
+      } | null)
+    | ({
+        relationTo: 'pages';
+        value: number | Page;
+      } | null)
+    | ({
+        relationTo: 'technologies';
+        value: number | Technology;
+      } | null)
+    | ({
+        relationTo: 'authors';
+        value: number | Author;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -271,13 +512,216 @@ export interface UsersSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "spike-pages_select".
+ * via the `definition` "media_select".
  */
-export interface SpikePagesSelect<T extends boolean = true> {
+export interface MediaSelect<T extends boolean = true> {
+  altText?: T;
+  caption?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  url?: T;
+  thumbnailURL?: T;
+  filename?: T;
+  mimeType?: T;
+  filesize?: T;
+  width?: T;
+  height?: T;
+  focalX?: T;
+  focalY?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "solutions_select".
+ */
+export interface SolutionsSelect<T extends boolean = true> {
+  slug?: T;
+  title?: T;
+  shortTitle?: T;
+  description?: T;
+  seoTitle?: T;
+  seoDescription?: T;
+  icon?: T;
+  color?: T;
+  quickAnswer?: T;
+  needSignals?: T;
+  deliverables?:
+    | T
+    | {
+        status?: T;
+        items?: T;
+        note?: T;
+      };
+  process?:
+    | T
+    | {
+        step?: T;
+        title?: T;
+        description?: T;
+        id?: T;
+      };
+  outcomes?: T;
+  relatedCaseStudies?: T;
+  audienceFit?:
+    | T
+    | {
+        status?: T;
+        items?: T;
+        note?: T;
+      };
+  timelineAndInvestment?:
+    | T
+    | {
+        status?: T;
+        items?: T;
+        note?: T;
+      };
+  faq?:
+    | T
+    | {
+        status?: T;
+        items?: T;
+        note?: T;
+      };
+  techStack?: T;
+  reviewState?: T;
+  sourceHash?: T;
+  seededContentHash?: T;
+  sourceKey?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "case-studies_select".
+ */
+export interface CaseStudiesSelect<T extends boolean = true> {
+  title?: T;
+  slug?: T;
+  industry?: T;
+  year?: T;
+  clientName?: T;
+  clientDisplay?: T;
+  dataClassification?: T;
+  tldr?: T;
+  challenge?: T;
+  solution?: T;
+  architecture?:
+    | T
+    | {
+        nodeId?: T;
+        label?: T;
+        nodeType?: T;
+        description?: T;
+        id?: T;
+      };
+  timeline?:
+    | T
+    | {
+        step?: T;
+        title?: T;
+        description?: T;
+        id?: T;
+      };
+  teamSize?: T;
+  results?:
+    | T
+    | {
+        title?: T;
+        description?: T;
+        id?: T;
+      };
+  metrics?:
+    | T
+    | {
+        value?: T;
+        unit?: T;
+        prefix?: T;
+        label?: T;
+        howMeasured?: T;
+        measuredAt?: T;
+        id?: T;
+      };
+  media?: T;
+  solutions?: T;
+  technologies?: T;
+  techStack?: T;
+  featured?: T;
+  coverGradient?: T;
+  seoTitle?: T;
+  seoDescription?: T;
+  publishedAt?: T;
+  reviewState?: T;
+  sourceHash?: T;
+  seededContentHash?: T;
+  sourceKey?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "posts_select".
+ */
+export interface PostsSelect<T extends boolean = true> {
+  slug?: T;
+  title?: T;
+  excerpt?: T;
+  content?: T;
+  category?: T;
+  tags?: T;
+  author?: T;
+  publishedAt?: T;
+  readingTime?: T;
+  featured?: T;
+  coverImage?: T;
+  seoTitle?: T;
+  seoDescription?: T;
+  reviewState?: T;
+  sourceHash?: T;
+  seededContentHash?: T;
+  sourceKey?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "pages_select".
+ */
+export interface PagesSelect<T extends boolean = true> {
   title?: T;
   slug?: T;
   summary?: T;
   content?: T;
+  seoTitle?: T;
+  seoDescription?: T;
+  reviewState?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "technologies_select".
+ */
+export interface TechnologiesSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  category?: T;
+  description?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "authors_select".
+ */
+export interface AuthorsSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  role?: T;
+  avatar?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -320,6 +764,70 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
   batch?: T;
   updatedAt?: T;
   createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "company-facts".
+ */
+export interface CompanyFact {
+  id: number;
+  name: string;
+  tagline?: string | null;
+  missionVi?: string | null;
+  director?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "faq".
+ */
+export interface Faq {
+  id: number;
+  items?:
+    | {
+        question: string;
+        answer: string;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "company-facts_select".
+ */
+export interface CompanyFactsSelect<T extends boolean = true> {
+  name?: T;
+  tagline?: T;
+  missionVi?: T;
+  director?: T;
+  email?: T;
+  phone?: T;
+  address?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "faq_select".
+ */
+export interface FaqSelect<T extends boolean = true> {
+  items?:
+    | T
+    | {
+        question?: T;
+        answer?: T;
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

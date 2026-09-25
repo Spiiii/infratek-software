@@ -86,6 +86,11 @@ export default async function CaseStudyDetailPage({ params }: PageProps) {
                 <Calendar className="mr-1 h-3 w-3" />
                 {cs.year}
               </Badge>
+              {cs.dataClassification === "illustrative" && (
+                <Badge className="border-amber-200/40 bg-amber-100/20 text-amber-50 backdrop-blur-sm">
+                  Tình huống minh họa
+                </Badge>
+              )}
             </div>
             <h1 className="heading-lg max-w-3xl text-white">{cs.title}</h1>
             <div className="mt-4 flex items-center gap-2 text-white/70">

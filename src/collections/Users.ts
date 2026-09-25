@@ -1,12 +1,5 @@
 import type { CollectionConfig } from "payload";
-
-const isAdmin = (user: unknown): boolean =>
-  Boolean(
-    user &&
-      typeof user === "object" &&
-      "role" in user &&
-      (user as { role?: string }).role === "admin"
-  );
+import { isAdmin } from "../cms/access";
 
 export const Users: CollectionConfig = {
   slug: "users",
@@ -16,6 +9,10 @@ export const Users: CollectionConfig = {
   auth: {
     maxLoginAttempts: 5,
     lockTime: 15 * 60 * 1000,
+    cookies: {
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "Lax",
+    },
   },
   access: {
     read: ({ req }) => isAdmin(req.user),
@@ -26,11 +23,7 @@ export const Users: CollectionConfig = {
     },
     update: ({ req }) => isAdmin(req.user),
     delete: ({ req }) => isAdmin(req.user),
-    unlock: ({ req, id }) =>
-      Boolean(
-        req.user &&
-          (isAdmin(req.user) || String(req.user.id) === String(id))
-      ),
+    unlock: ({ req }) => isAdmin(req.user),
   },
   hooks: {
     beforeChange: [
@@ -45,8 +38,8 @@ export const Users: CollectionConfig = {
     {
       name: "role",
       type: "select",
-      defaultValue: "editor",
-      options: ["admin", "editor"],
+      defaultValue: "author",
+      options: ["admin", "reviewer", "author"],
       required: true,
     },
   ],
