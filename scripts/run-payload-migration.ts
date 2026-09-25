@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import nextEnv from "@next/env";
+import { assertMigrationTarget } from "./migration-target-guard";
 
 const command = process.argv[2];
 const targetArg = process.argv.find((argument) => argument.startsWith("--target="));
@@ -22,6 +23,10 @@ const directDatabaseUrl = process.env[databaseVariable];
 if (!directDatabaseUrl) {
   throw new Error(`${databaseVariable} must be set for ${target} migrations`);
 }
+
+// Validate the actual Neon endpoint, not just the environment-variable name.
+// This prevents a Production URL stored under a Preview variable from running.
+assertMigrationTarget(target, directDatabaseUrl);
 
 if (!command?.startsWith("migrate")) {
   throw new Error("A Payload migration command is required");

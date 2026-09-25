@@ -63,6 +63,9 @@ Status: **Chưa tự động đóng Giai đoạn 3** — phần code, schema, mi
 | Reviewer unlock admin | Bị từ chối |
 | Media thiếu `altText` | Bị validation từ chối |
 | Production migration guard | Write bị chặn khi thiếu xác nhận riêng |
+| Production content source | `CONTENT_SOURCE` không tồn tại trong Production scope; code dùng static |
+| Production bootstrap admin | Payload login pass; role là `admin` |
+| Preview-vs-Production URL guard | Pass; Production endpoint dưới biến Preview bị chặn trước Payload CLI |
 | Vercel Preview | Ready tại `https://infratek-software-p8oc2p3e3-spi6.vercel.app` |
 | Preview environment isolation | `DATABASE_URL`, `CONTENT_SOURCE` và `PAYLOAD_SECRET` giới hạn riêng cho branch `codex/phase-3-payload-neon` |
 | Preview route thật | Solution, case study và blog detail render HTTP 200 từ Payload; case hiện nhãn “Tình huống minh họa” |
@@ -82,6 +85,15 @@ Runner đã được sửa để lỗi này không lặp lại. Chưa tự chạ
 
 1. giữ migration schema sớm trên Production, seed/deploy ở checkpoint phát hành Phase 3; hoặc
 2. khôi phục Production về thời điểm trước migration, rồi chạy lại ở checkpoint phát hành.
+
+### Xác minh an toàn Production sau sự cố
+
+- Vercel Environment Variables ngày 2026-09-25 cho thấy `CONTENT_SOURCE` chỉ áp dụng cho `Preview` và riêng branch `codex/phase-3-payload-neon`. Production không có biến này. Hàm `shouldUsePayload()` chỉ trả true khi giá trị bằng chính xác `payload`; vì vậy deployment Production hiện tiếp tục dùng nguồn static.
+- `https://www.infratek.vn/admin` hiện trả trang 404 của source Production cũ, nên chưa có giao diện Payload để đăng nhập trực tiếp. Không diễn giải kiểm tra này thành UI admin đã đạt.
+- Thay vào đó, `npm run verify:production-admin` đã dùng Payload auth với đúng Production DB và tài khoản bootstrap Giai đoạn 0. Kết quả: `login=passed`, email `trong.ngo@infratek.vn`, `role=admin`. Không cần migration backfill role.
+- Nguyên nhân guard xác nhận Production không chặn sự cố: tại thời điểm lệnh nhầm chạy, runner Giai đoạn 0 chưa có target hoặc guard và luôn thay `DATABASE_URL` bằng `DATABASE_URL_UNPOOLED` từ `.env.local`. Guard `CONFIRM_PRODUCTION_MIGRATION` chỉ được thêm sau khi phát hiện sự cố; phiên bản đầu của guard này cũng chỉ chạy khi lệnh mang `--target=production`, nên không thể nhận biết một URL Production bị đặt dưới tên biến hoặc ý định Preview.
+- Runner hiện kiểm tra endpoint Neon thực trong connection string trước khi spawn Payload: Preview chỉ chấp nhận `ep-nameless-leaf-b3fc4hoi`, Production chỉ chấp nhận `ep-still-fog-b3h6yj1y`. Việc đổi tên biến không vượt qua được kiểm tra.
+- `npm run verify:phase3:migration-guard` kiểm tra cả validator và runner integration. Khi `DATABASE_URL_PREVIEW_UNPOOLED` cố ý chứa URL Production, runner thoát khác 0 với `Refusing preview migration` trước khi Payload CLI được spawn.
 
 ## Audit lỗi và việc còn tồn tại
 

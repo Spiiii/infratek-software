@@ -21,6 +21,8 @@
     "payload:migrate:status:production": "tsx scripts/run-payload-migration.ts migrate:status --target=production",
     "payload:seed": "tsx scripts/seed-content.ts",
     "verify:phase3": "tsx scripts/verify-phase3.ts",
+    "verify:phase3:migration-guard": "tsx scripts/test-migration-target-guard.ts",
+    "verify:production-admin": "tsx scripts/verify-production-admin.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint ."
   },
