@@ -3,7 +3,7 @@
 Date checked: 2026-09-25  
 Baseline checkpoint: `5831618`  
 Implementation branch: `codex/phase-3-payload-neon`  
-Status: **Chưa tự động đóng Giai đoạn 3** — phần code, schema, migration, seed và workflow đã đạt; Blob/Preview và quyết định xử lý Production còn mở.
+Status: **Chưa tự động đóng Giai đoạn 3** — phần code, schema, migration, seed, workflow và Preview đã đạt; Blob và quyết định xử lý Production còn mở.
 
 ## Mục tiêu
 
@@ -63,6 +63,10 @@ Status: **Chưa tự động đóng Giai đoạn 3** — phần code, schema, mi
 | Reviewer unlock admin | Bị từ chối |
 | Media thiếu `altText` | Bị validation từ chối |
 | Production migration guard | Write bị chặn khi thiếu xác nhận riêng |
+| Vercel Preview | Ready tại `https://infratek-software-p8oc2p3e3-spi6.vercel.app` |
+| Preview environment isolation | `DATABASE_URL`, `CONTENT_SOURCE` và `PAYLOAD_SECRET` giới hạn riêng cho branch `codex/phase-3-payload-neon` |
+| Preview route thật | Solution, case study và blog detail render HTTP 200 từ Payload; case hiện nhãn “Tình huống minh họa” |
+| Preview `/admin` | Payload chuyển về `/admin/login`; truy cập ngoài phiên Vercel trả 302 SSO, `X-Robots-Tag: noindex` |
 
 Script kiểm thử workflow tạo dữ liệu tạm bằng Local API với `overrideAccess:false`, sau đó dọn case và ba user test bằng system override.
 
@@ -82,7 +86,7 @@ Runner đã được sửa để lỗi này không lặp lại. Chưa tự chạ
 ## Audit lỗi và việc còn tồn tại
 
 1. Chưa có `BLOB_READ_WRITE_TOKEN`, nên mới xác nhận adapter và validation alt text; chưa thể tải một ảnh thật lên Vercel Blob và kiểm tra URL Blob.
-2. Chưa push/deploy Vercel Preview cho branch Phase 3; cần cấu hình Preview dùng Neon `phase3-preview`, `CONTENT_SOURCE=payload`, `PAYLOAD_SECRET`, Blob token và bật Vercel Authentication.
+2. Vercel Preview đã dùng Neon `phase3-preview`, `CONTENT_SOURCE=payload`, `PAYLOAD_SECRET` riêng và Vercel Authentication; còn thiếu Blob token.
 3. Production đã nhận schema Phase 3 sớm như mô tả trên; cần quyết định giữ hay khôi phục trước khi đóng giai đoạn.
 4. Cảnh báo `pg` về semantics tương lai của `sslmode=require` không chặn hiện tại; connection đang mã hóa TLS, cần rà lại khi nâng major `pg-connection-string`/`pg`.
 5. `npm audit` báo 7 mục (1 low, 6 moderate). Không tự nâng version ngoài phạm vi vì Next/Payload đang pin theo spike.
@@ -96,7 +100,7 @@ Runner đã được sửa để lỗi này không lặp lại. Chưa tự chạ
 - [x] `reviewState` và `_status` hoạt động độc lập đúng như thiết kế; không có field nào tên `status` trong collection bật drafts.
 - [x] Local API operation thay mặt người dùng đặt `overrideAccess:false` và truyền user thật; chỉ script nội bộ mới override quyền.
 - [x] Có test xác nhận Author và Reviewer không thể unlock tài khoản admin.
-- [ ] Deploy Preview không làm thay đổi dữ liệu Production ngoài ý muốn. Chưa deploy; đã phát hiện và cô lập lỗi runner, nhưng Production đã nhận migration sớm và cần quyết định xử lý.
+- [ ] Deploy Preview hiện đã tách biến branch và đọc đúng Neon Preview, nhưng điều kiện tổng thể chưa thể đánh dấu đạt vì Production đã nhận migration sớm trước lúc deploy và cần quyết định xử lý.
 - [x] `/admin` có authentication, `maxLoginAttempts`/`lockTime`, `access.unlock` override, quyền tối thiểu theo vai trò và `noindex`.
 - [x] Đã thử build khi database không truy cập được; static fallback giúp build hoàn tất.
 - [ ] Chủ dự án xác nhận kết quả và quyết định đóng Giai đoạn 3.
