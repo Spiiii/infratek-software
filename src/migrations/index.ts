@@ -1,5 +1,6 @@
 import * as migration_20260922_074043_initial from './20260922_074043_initial';
 import * as migration_20260924_132306_phase3_schema from './20260924_132306_phase3_schema';
+import * as migration_20260925_133726_add_media_blob_fields from './20260925_133726_add_media_blob_fields';
 
 export const migrations = [
   {
@@ -10,6 +11,11 @@ export const migrations = [
   {
     up: migration_20260924_132306_phase3_schema.up,
     down: migration_20260924_132306_phase3_schema.down,
-    name: '20260924_132306_phase3_schema'
+    name: '20260924_132306_phase3_schema',
+  },
+  {
+    up: migration_20260925_133726_add_media_blob_fields.up,
+    down: migration_20260925_133726_add_media_blob_fields.down,
+    name: '20260925_133726_add_media_blob_fields',
   },
 ];

@@ -1,9 +1,9 @@
 # Phase 3 — Payload, Neon và Blob
 
-Date checked: 2026-09-25  
+Date checked: 2026-09-28
 Baseline checkpoint: `5831618`  
 Implementation branch: `codex/phase-3-payload-neon`  
-Status: **Chưa tự động đóng Giai đoạn 3** — phần code, schema, migration, seed, workflow và Preview đã đạt; Blob và quyết định xử lý Production còn mở.
+Status: **Chờ chủ dự án xác nhận đóng Giai đoạn 3** — toàn bộ điều kiện kỹ thuật đã đạt; phương án giữ nguyên schema Production đã được chủ dự án chấp thuận.
 
 ## Mục tiêu
 
@@ -40,6 +40,8 @@ Status: **Chưa tự động đóng Giai đoạn 3** — phần code, schema, mi
 - Draft Mode xác thực cookie Payload và chỉ mở cho admin/reviewer; Local API thay mặt user dùng `overrideAccess:false` cùng user thật.
 - Khi database không truy cập được, repository dùng dữ liệu tĩnh hiện hữu làm fallback để build không thất bại. Đây là phương án khả dụng khi CMS tạm mất kết nối, không tạo nội dung mới.
 - Blob adapter cho `media` được cấu hình qua `BLOB_READ_WRITE_TOKEN`, client upload bật và `altText` bắt buộc.
+- Tạo migration `20260925_133726_add_media_blob_fields`, batch 3, bổ sung `media.prefix` và `media._objectkey` mà Blob adapter yêu cầu; migration chỉ chạy trên Neon `phase3-preview`.
+- Ảnh Dashboard CRM chỉ tồn tại dưới dạng Media kỹ thuật; không tạo case study CRM hay nội dung Giai đoạn 4.
 
 ## Bằng chứng kiểm thử
 
@@ -50,7 +52,7 @@ Status: **Chưa tự động đóng Giai đoạn 3** — phần code, schema, mi
 | `npm run build` với `CONTENT_SOURCE=static` | Pass, 37 trang |
 | `npm run build` với `CONTENT_SOURCE=payload` + Neon Preview | Pass, các slug solution/case/blog lấy từ CMS |
 | Build với `CONTENT_SOURCE=payload` + DB `127.0.0.1:1` | Pass; log xác nhận static fallback |
-| Migration status Preview | Initial batch 1: Yes; Phase 3 batch 2: Yes |
+| Migration status Preview | Initial batch 1: Yes; Phase 3 batch 2: Yes; Blob fields batch 3: Yes |
 | Seed dry-run | 14 create, 0 conflict |
 | Seed thật lần đầu | 14 create, 0 conflict |
 | Seed lần hai | 14 unchanged |
@@ -61,12 +63,14 @@ Status: **Chưa tự động đóng Giai đoạn 3** — phần code, schema, mi
 | Public query sau publish/unpublish | Thấy bản published; không thấy draft |
 | Author unlock admin | Bị từ chối |
 | Reviewer unlock admin | Bị từ chối |
-| Media thiếu `altText` | Bị validation từ chối |
+| Media thiếu `altText` | Upload qua Payload Admin bị từ chối với `The following field is invalid: Alt Text` |
+| Blob upload thật | Payload Media ID `1`, `1.png`, 110265 bytes, 1748×788, `image/png`; alt text đúng nội dung được duyệt |
+| Blob URL trực tiếp | `https://0krlas00jkd6rp2e.public.blob.vercel-storage.com/infratek-media/2a66c6da-bce7-4714-8c8d-fa8e8d2dfb55/1.png`: HTTP 200, `Content-Type: image/png`, hiển thị 1748×788 |
 | Production migration guard | Write bị chặn khi thiếu xác nhận riêng |
 | Production content source | `CONTENT_SOURCE` không tồn tại trong Production scope; code dùng static |
 | Production bootstrap admin | Payload login pass; role là `admin` |
 | Preview-vs-Production URL guard | Pass; Production endpoint dưới biến Preview bị chặn trước Payload CLI |
-| Vercel Preview | Ready tại `https://infratek-software-p8oc2p3e3-spi6.vercel.app` |
+| Vercel Preview | Ready tại `https://infratek-software-if0o9vthf-spi6.vercel.app` sau khi nạp biến Blob |
 | Preview environment isolation | `DATABASE_URL`, `CONTENT_SOURCE` và `PAYLOAD_SECRET` giới hạn riêng cho branch `codex/phase-3-payload-neon` |
 | Preview route thật | Solution, case study và blog detail render HTTP 200 từ Payload; case hiện nhãn “Tình huống minh họa” |
 | Preview `/admin` | Payload chuyển về `/admin/login`; truy cập ngoài phiên Vercel trả 302 SSO, `X-Robots-Tag: noindex` |
@@ -97,9 +101,9 @@ Runner đã được sửa để lỗi này không lặp lại. Chưa tự chạ
 
 ## Audit lỗi và việc còn tồn tại
 
-1. Chưa có `BLOB_READ_WRITE_TOKEN`, nên mới xác nhận adapter và validation alt text; chưa thể tải một ảnh thật lên Vercel Blob và kiểm tra URL Blob.
-2. Vercel Preview đã dùng Neon `phase3-preview`, `CONTENT_SOURCE=payload`, `PAYLOAD_SECRET` riêng và Vercel Authentication; còn thiếu Blob token.
-3. Production đã nhận schema Phase 3 sớm như mô tả trên; cần quyết định giữ hay khôi phục trước khi đóng giai đoạn.
+1. `BLOB_READ_WRITE_TOKEN` đã được tạo và giới hạn ở Preview. Blob store `infratek-phase3-preview` là Public, vùng SIN1; ảnh thật đã được upload thành công qua Payload Media.
+2. Lần thử thiếu `altText` bị Payload từ chối bản ghi đúng thiết kế. Vì client upload diễn ra trước validation record, thử nghiệm này để lại một Blob ảnh trùng không gắn với Media record tại object key `96347f61-4d40-4e69-bccf-43f4a83b2684`. Không tự xóa vì xóa dữ liệu cloud cần xác nhận riêng.
+3. Production đã nhận schema Phase 3 sớm như mô tả trên; chủ dự án đã chọn phương án 1: giữ nguyên schema Production và không cutover `CONTENT_SOURCE` cho tới quyết định riêng.
 4. Cảnh báo `pg` về semantics tương lai của `sslmode=require` không chặn hiện tại; connection đang mã hóa TLS, cần rà lại khi nâng major `pg-connection-string`/`pg`.
 5. `npm audit` báo 7 mục (1 low, 6 moderate). Không tự nâng version ngoài phạm vi vì Next/Payload đang pin theo spike.
 6. Ba technical debt cũ vẫn nằm trong `docs/OPEN-ITEMS.md`; không thay đổi trong giai đoạn này.
@@ -108,11 +112,11 @@ Runner đã được sửa để lỗi này không lặp lại. Chưa tự chạ
 
 - [x] Có thể tạo, duyệt, xuất bản và gỡ xuất bản một case study.
 - [x] Frontend chỉ hiển thị nội dung published.
-- [ ] Ảnh tồn tại trên Blob và có alt text. Alt validation đã đạt; upload Blob thật chờ token.
+- [x] Ảnh tồn tại trên Blob và có alt text; upload thiếu alt bị validation từ chối.
 - [x] `reviewState` và `_status` hoạt động độc lập đúng như thiết kế; không có field nào tên `status` trong collection bật drafts.
 - [x] Local API operation thay mặt người dùng đặt `overrideAccess:false` và truyền user thật; chỉ script nội bộ mới override quyền.
 - [x] Có test xác nhận Author và Reviewer không thể unlock tài khoản admin.
-- [ ] Deploy Preview hiện đã tách biến branch và đọc đúng Neon Preview, nhưng điều kiện tổng thể chưa thể đánh dấu đạt vì Production đã nhận migration sớm trước lúc deploy và cần quyết định xử lý.
+- [x] Deploy Preview tách biến branch, đọc đúng Neon Preview, Blob token chỉ ở scope Preview; chủ dự án đã chọn giữ schema Production và Production tiếp tục dùng nội dung static.
 - [x] `/admin` có authentication, `maxLoginAttempts`/`lockTime`, `access.unlock` override, quyền tối thiểu theo vai trò và `noindex`.
 - [x] Đã thử build khi database không truy cập được; static fallback giúp build hoàn tất.
 - [ ] Chủ dự án xác nhận kết quả và quyết định đóng Giai đoạn 3.
