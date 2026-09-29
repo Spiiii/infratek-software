@@ -27,6 +27,21 @@ Danh sách nội dung đang dùng placeholder hoặc chưa có dữ liệu ngu�
 
 Không gán case study hiện có cho hai giải pháp trên nếu chưa có bằng chứng nội dung phù hợp.
 
+## Case study minh họa Giai đoạn 4
+
+Sáu case dưới đây là nội dung **được sinh hoàn toàn để xem trước giao diện**, không phải bằng chứng dự án thực tế. Tất cả phải giữ `_status: draft`, `reviewState: editing`, `dataClassification: illustrative` cho tới khi chủ dự án thay bằng dữ liệu thật, duyệt và tự publish trong `/admin`.
+
+| Case | Slug | Việc cần làm trước khi publish |
+|---|---|---|
+| DMS | `dms-document-management` | Viết lại toàn bộ nội dung từ hồ sơ dự án thật; thay đồ họa minh họa bằng asset đã được duyệt. |
+| HRM | `hrm-human-resource-management` | Viết lại toàn bộ nội dung từ hồ sơ dự án thật; xác minh mọi số liệu và phạm vi. |
+| E-POS | `e-pos-system` | Viết lại toàn bộ nội dung từ hồ sơ dự án thật; xác minh mọi số liệu và phạm vi. |
+| E-Office | `e-office` | Viết lại toàn bộ nội dung từ hồ sơ dự án thật; xác minh mọi số liệu và phạm vi. |
+| Microsoft 365 | `microsoft-365-deployment` | Viết lại từ hồ sơ triển khai thật; chỉ mô tả sự việc, không dùng logo hoặc ngụ ý quan hệ đối tác. |
+| Odoo | `odoo-erp-implementation` | Viết lại từ hồ sơ triển khai thật; chỉ mô tả sự việc, không dùng logo hoặc ngụ ý quan hệ đối tác. |
+
+Việc seed lại không tự publish các case này và không xóa backlog. Chủ dự án phải chủ động xử lý từng dòng.
+
 ## About và Team
 
 | Trang | Nội dung còn thiếu | Trạng thái |

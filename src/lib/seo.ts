@@ -25,13 +25,16 @@ export function createPageMetadata({
   description,
   path,
   type = "website",
+  image,
 }: {
   title: string;
   description: string;
   path: string;
   type?: "website" | "article";
+  image?: string;
 }): Metadata {
   const url = absoluteUrl(path);
+  const ogImage = image ? { url: image, width: 1200, height: 630, alt: title } : defaultOgImage;
 
   return {
     title,
@@ -44,13 +47,13 @@ export function createPageMetadata({
       title,
       description,
       url,
-      images: [defaultOgImage],
+      images: [ogImage],
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      images: [defaultOgImage.url],
+      images: [ogImage.url],
     },
   };
 }

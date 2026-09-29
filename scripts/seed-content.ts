@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { readFile, readdir } from "node:fs/promises";
+import path from "node:path";
 import nextEnv from "@next/env";
 import { getPayload } from "payload";
 import { blogPosts } from "../src/data/blog";
@@ -78,6 +80,44 @@ const ensureTechnology = async (name: string) => {
   return (await payload.create({ collection: "technologies", data: { name, slug }, overrideAccess: true })).id;
 };
 
+type CasePackage = {
+  title: string; slug: string; industry: string; year: string; clientName: string;
+  clientDisplay: "named" | "anonymized"; dataClassification: "verified" | "anonymized" | "illustrative";
+  tldr: string; challenge: string; solution: string;
+  architecture: Array<{ nodeId: string; label: string; nodeType: "input" | "process" | "storage" | "output" | "ai"; description: string }>;
+  timeline: Array<{ step: number; title: string; description: string }>;
+  results: Array<{ title: string; description: string }>;
+  metrics: Array<{ value: number; unit: string; prefix?: string; label: string; howMeasured: string; measuredAt: string }>;
+  solutionSlugs: string[]; techStack: string[]; featured: boolean; coverGradient: string;
+  seoTitle: string; seoDescription: string; reviewState: "editing"; _status: "draft";
+  images?: Array<{ file: string; altText: string }>;
+};
+
+const contentRoot = path.join(process.cwd(), "content", "case-studies");
+const packageDirectories = await readdir(contentRoot, { withFileTypes: true });
+const casePackages = await Promise.all(packageDirectories.filter((entry) => entry.isDirectory()).map(async (entry) => {
+  const packagePath = path.join(contentRoot, entry.name, "index.yml");
+  return { directory: path.dirname(packagePath), data: JSON.parse(await readFile(packagePath, "utf8")) as CasePackage };
+}));
+
+const mimeType = (filename: string) => filename.endsWith(".svg") ? "image/svg+xml" : "image/png";
+const ensureMedia = async (directory: string, image: { file: string; altText: string }) => {
+  const absolutePath = path.join(directory, image.file);
+  const data = await readFile(absolutePath);
+  const name = path.basename(absolutePath);
+  const found = await payload.find({ collection: "media", where: { filename: { equals: name } }, limit: 1, overrideAccess: true });
+  const existing = found.docs[0];
+  if (existing) {
+    if (existing.altText !== image.altText && !dryRun) await payload.update({ collection: "media", id: existing.id, data: { altText: image.altText }, overrideAccess: true });
+    return existing.id;
+  }
+  if (dryRun) return undefined;
+  return (await payload.create({
+    collection: "media", data: { altText: image.altText }, overrideAccess: true,
+    file: { data, mimetype: mimeType(name), name, size: data.byteLength },
+  })).id;
+};
+
 const solutionIds = new Map<string, number>();
 for (const item of solutions) {
   const seo = {
@@ -116,19 +156,40 @@ for (const item of caseStudies) {
     tldr: item.summary, challenge: item.challenge, solution: item.solution,
     architecture: item.architecture.map(({ id, label, type, description }) => ({ nodeId: id, label, nodeType: type, description })),
     timeline: item.implementationFlow, results: item.results,
-    metrics: item.metrics.map((metric) => ({ value: metric.value, unit: metric.suffix, prefix: metric.prefix, label: metric.label, howMeasured: metric.description })),
+    metrics: item.metrics.map((metric) => ({ value: metric.value, unit: metric.suffix, prefix: metric.prefix, label: metric.label, howMeasured: `${metric.description} Nguồn: bộ dữ liệu minh họa Giai đoạn 3.`, measuredAt: "2026-09-29T00:00:00.000Z" })),
     solutions: (caseSolutions[item.slug] ?? []).flatMap((slug) => solutionIds.get(slug) ?? []),
     technologies: technologyIds, techStack: item.techStack, featured: item.featured,
     coverGradient: item.coverGradient, seoTitle: item.title, seoDescription: item.summary,
-    reviewState: "approved", _status: "published",
+    publishedAt: "2026-09-29T00:00:00.000Z", reviewState: "approved", _status: "published",
+  });
+}
+
+for (const item of casePackages) {
+  const value = item.data;
+  const technologyIds = (await Promise.all(value.techStack.map(ensureTechnology))).filter((id): id is number => typeof id === "number");
+  const discoveredImages = value.images ?? (await readdir(path.join(item.directory, "images"))).sort().map((filename, index) => ({
+    file: `images/${filename}`,
+    altText: `${value.title}: đồ họa minh họa ${index + 1}, không phải ảnh chụp sản phẩm thật`,
+  }));
+  const mediaIds = (await Promise.all(discoveredImages.map((image) => ensureMedia(item.directory, image)))).filter((id): id is number => typeof id === "number");
+  await upsert("case-studies", value.slug, {
+    title: value.title, slug: value.slug, industry: value.industry, year: value.year,
+    clientName: value.clientName, clientDisplay: value.clientDisplay, dataClassification: value.dataClassification,
+    tldr: value.tldr, challenge: value.challenge, solution: value.solution,
+    architecture: value.architecture, timeline: value.timeline, results: value.results, metrics: value.metrics,
+    media: mediaIds, solutions: value.solutionSlugs.flatMap((slug) => solutionIds.get(slug) ?? []),
+    technologies: technologyIds, techStack: value.techStack, featured: value.featured,
+    coverGradient: value.coverGradient, seoTitle: value.seoTitle, seoDescription: value.seoDescription,
+    reviewState: "editing", _status: "draft",
   });
 }
 
 for (const item of await payload.find({ collection: "case-studies", limit: 100, depth: 0, overrideAccess: true }).then((result) => result.docs)) caseIds.set(item.slug, item.id);
 const solutionCases: Record<string, string[]> = {
-  "ai-consulting": [], "software-development": ["pms-project-management", "interview-ai"],
+  "ai-consulting": [], "software-development": ["pms-project-management", "interview-ai", "crm-system", "hrm-human-resource-management", "e-pos-system", "odoo-erp-implementation"],
   "it-outsourcing": [], "digital-transformation": ["ocr-document-intelligence", "camera-ai-transformation"],
 };
+solutionCases["digital-transformation"].push("crm-system", "dms-document-management", "e-pos-system", "e-office", "microsoft-365-deployment", "odoo-erp-implementation");
 if (!dryRun) {
   for (const [slug, caseSlugs] of Object.entries(solutionCases)) {
     const id = solutionIds.get(slug);
@@ -149,4 +210,5 @@ for (const item of blogPosts) {
 console.log(JSON.stringify({ dryRun, ...report }, null, 2));
 // Payload's Postgres adapter keeps background handles alive in this standalone
 // script, so terminate explicitly after every awaited write has completed.
+await new Promise((resolve) => setTimeout(resolve, 50));
 process.exit(report.conflict > 0 ? 2 : 0);

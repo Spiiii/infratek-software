@@ -33,9 +33,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const cs = await getCaseStudyBySlug(slug);
   if (!cs) return { title: "Case Study Not Found" };
   return createPageMetadata({
-    title: cs.title,
-    description: cs.summary,
+    title: cs.seoTitle ?? cs.title,
+    description: cs.seoDescription ?? cs.summary,
     path: `/case-studies/${cs.slug}`,
+    type: "article",
   });
 }
 
@@ -53,15 +54,25 @@ export default async function CaseStudyDetailPage({ params }: PageProps) {
   return (
     <>
       <JsonLd
-        data={{
-          "@context": "https://schema.org",
-          "@type": "BreadcrumbList",
-          itemListElement: [
-            { "@type": "ListItem", position: 1, name: "Trang chủ", item: absoluteUrl("/") },
-            { "@type": "ListItem", position: 2, name: "Case Studies", item: absoluteUrl("/case-studies") },
-            { "@type": "ListItem", position: 3, name: cs.title, item: absoluteUrl(`/case-studies/${cs.slug}`) },
-          ],
-        }}
+        data={[
+          {
+            "@context": "https://schema.org", "@type": "Article",
+            headline: cs.title, description: cs.summary,
+            mainEntityOfPage: absoluteUrl(`/case-studies/${cs.slug}`),
+            ...(cs.gallery[0] ? { image: [absoluteUrl(cs.gallery[0])] } : {}),
+            ...(cs.publishedAt ? { datePublished: cs.publishedAt } : {}),
+            ...(cs.updatedAt ? { dateModified: cs.updatedAt } : {}),
+            author: { "@id": absoluteUrl("/#organization") }, publisher: { "@id": absoluteUrl("/#organization") },
+          },
+          {
+            "@context": "https://schema.org", "@type": "BreadcrumbList",
+            itemListElement: [
+              { "@type": "ListItem", position: 1, name: "Trang chủ", item: absoluteUrl("/") },
+              { "@type": "ListItem", position: 2, name: "Case Studies", item: absoluteUrl("/case-studies") },
+              { "@type": "ListItem", position: 3, name: cs.title, item: absoluteUrl(`/case-studies/${cs.slug}`) },
+            ],
+          },
+        ]}
       />
       {/* Hero Banner */}
       <section
@@ -108,6 +119,12 @@ export default async function CaseStudyDetailPage({ params }: PageProps) {
           <MetricCards metrics={cs.metrics} />
         </div>
       </section>
+
+      {cs.gallery.length > 0 && (
+        <section className="pb-16"><div className="container-main grid gap-5 md:grid-cols-2">
+          {cs.gallery.map((image, index) => <img key={image} src={image} alt={`${cs.title} — hình ${index + 1}`} className="aspect-video w-full rounded-xl border border-border object-cover" />)}
+        </div></section>
+      )}
 
       {/* Challenge & Solution */}
       <section className="pb-16">

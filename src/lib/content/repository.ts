@@ -34,7 +34,19 @@ const staticSolutions: SolutionDomain[] = solutions.map((item) => ({
   faq: placeholder(placeholderNote), techStack: item.techStack,
 }));
 
-const staticCases: CaseStudyDomain[] = caseStudies.map((item) => ({ ...item, dataClassification: "illustrative" }));
+const staticCaseSolutions: Record<string, string[]> = {
+  "camera-ai-transformation": ["digital-transformation"],
+  "ocr-document-intelligence": ["digital-transformation"],
+  "interview-ai": ["software-development"],
+  "pms-project-management": ["software-development"],
+};
+const staticCases: CaseStudyDomain[] = caseStudies.map((item) => ({
+  ...item,
+  dataClassification: "illustrative",
+  solutionSlugs: staticCaseSolutions[item.slug] ?? [],
+  seoTitle: item.title,
+  seoDescription: item.summary,
+}));
 const block = (value: PayloadSolution["deliverables"]): ContentBlock => ({ status: value.status, items: value.items ?? [], note: value.note ?? undefined });
 
 const mapSolution = (item: PayloadSolution): SolutionDomain => ({
@@ -56,10 +68,13 @@ const mapCase = (item: PayloadCaseStudy): CaseStudyDomain => ({
   techStack: item.techStack ?? [],
   implementationFlow: (item.timeline ?? []).map(({ step, title, description }) => ({ step, title, description })),
   results: (item.results ?? []).map(({ title, description }) => ({ title, description })),
-  metrics: (item.metrics ?? []).map((metric) => ({ label: metric.label, value: metric.value, suffix: metric.unit, prefix: metric.prefix ?? undefined, description: metric.howMeasured ?? "" })),
+  metrics: (item.metrics ?? []).map((metric) => ({ label: metric.label, value: metric.value, suffix: metric.unit, prefix: metric.prefix ?? undefined, description: metric.howMeasured ?? "", measuredAt: metric.measuredAt ?? undefined })),
   gallery: (item.media ?? []).flatMap((entry) => typeof entry === "object" && entry.url ? [entry.url] : []),
   featured: item.featured ?? false, coverGradient: item.coverGradient ?? "from-blue-600 to-sky-400",
   year: item.year, dataClassification: item.dataClassification,
+  solutionSlugs: (item.solutions ?? []).flatMap((entry) => typeof entry === "object" ? [entry.slug] : []),
+  seoTitle: item.seoTitle ?? undefined, seoDescription: item.seoDescription ?? undefined,
+  publishedAt: item.publishedAt ?? undefined, updatedAt: item.updatedAt,
 });
 
 const mapPost = (item: PayloadPost): BlogPost => {

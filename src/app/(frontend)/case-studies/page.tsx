@@ -2,7 +2,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { getCaseStudies } from "@/lib/content";
+import { getCaseStudies, getSolutions } from "@/lib/content";
 import { FadeIn } from "@/components/shared/fade-in";
 import { CTASection } from "@/components/layout/cta-section";
 import { Badge } from "@/components/ui/badge";
@@ -16,8 +16,20 @@ export const metadata: Metadata = createPageMetadata({
   path: "/case-studies",
 });
 
-export default async function CaseStudiesPage() {
-  const caseStudies = await getCaseStudies();
+interface PageProps {
+  searchParams: Promise<{ industry?: string; solution?: string }>;
+}
+
+export default async function CaseStudiesPage({ searchParams }: PageProps) {
+  const [{ industry, solution }, allCaseStudies, solutions] = await Promise.all([
+    searchParams,
+    getCaseStudies(),
+    getSolutions(),
+  ]);
+  const caseStudies = allCaseStudies.filter((item) =>
+    (!industry || item.industry === industry) && (!solution || (item.solutionSlugs ?? []).includes(solution)),
+  );
+  const industries = [...new Set(allCaseStudies.map((item) => item.industry))].sort();
   return (
     <>
       <section className="relative overflow-hidden pb-16 pt-32">
@@ -42,6 +54,18 @@ export default async function CaseStudiesPage() {
 
       <section className="section-padding pt-0">
         <div className="container-main">
+          <nav aria-label="Lọc case study" className="mb-8 space-y-4 rounded-2xl border border-border bg-white p-5">
+            <div className="flex flex-wrap items-center gap-2">
+              <strong className="mr-2 text-sm text-navy">Theo ngành:</strong>
+              <Link href="/case-studies" className="rounded-full border border-border px-3 py-1 text-sm hover:border-primary">Tất cả</Link>
+              {industries.map((value) => <Link key={value} href={`/case-studies?industry=${encodeURIComponent(value)}`} className="rounded-full border border-border px-3 py-1 text-sm hover:border-primary">{value}</Link>)}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <strong className="mr-2 text-sm text-navy">Theo giải pháp:</strong>
+              {solutions.map((value) => <Link key={value.slug} href={`/case-studies?solution=${value.slug}`} className="rounded-full border border-border px-3 py-1 text-sm hover:border-primary">{value.shortTitle}</Link>)}
+            </div>
+          </nav>
+          {caseStudies.length === 0 && <p className="mb-8 rounded-xl border border-dashed border-border p-6 text-center text-text-secondary">Chưa có case study công khai phù hợp với bộ lọc này.</p>}
           <div className="grid gap-8 md:grid-cols-2">
             {caseStudies.map((cs, i) => (
               <FadeIn key={cs.id} delay={i * 0.1}>

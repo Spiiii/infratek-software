@@ -38,6 +38,9 @@ export default buildConfig({
   ],
   globals: [CompanyFacts, Faq],
   db: postgresAdapter({
+    // Schema is migration-managed. Standalone scripts must never infer and
+    // push schema changes from environment-dependent plugins.
+    push: false,
     pool: {
       connectionString:
         process.env.DATABASE_URL ??

@@ -4,8 +4,8 @@ Các mục dưới đây không thuộc phạm vi Giai đoạn 2 và không đư
 
 | Mục | Trạng thái | Gate | Hướng xử lý |
 |---|---|---|---|
-| Xoay mật khẩu Neon database | Mở | Trước Giai đoạn 4 | Tạo credential mới, cập nhật môi trường, xác minh kết nối rồi thu hồi credential cũ. |
-| Thay Neon MCP key account-wide | Mở | Trước Giai đoạn 4 | Dùng key giới hạn theo project và thu hồi key có phạm vi toàn tài khoản. |
+| Xoay mật khẩu Neon database | Hoàn tất [x] | Đã xử lý trước Giai đoạn 4 | Credential mới đã được cập nhật và credential cũ đã được thu hồi theo xác nhận của chủ dự án. |
+| Thay Neon MCP key account-wide | Hoàn tất [x] | Đã xử lý trước Giai đoạn 4 | MCP dùng credential giới hạn cho project `orange-wave-77862035`; key cũ đã được thu hồi theo xác nhận của chủ dự án. |
 | SMTP `550 5.7.1` khi gửi form liên hệ | Deferred | Trước khi vận hành thật | Xác minh subdomain gửi riêng hoặc phối hợp nhà cung cấp email cho phép Resend/Amazon SES; kiểm thử lại đến trạng thái `Delivered`. |
 
 ## Ghi chú tài liệu

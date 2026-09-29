@@ -1,0 +1,47 @@
+{
+  "title": "CRM quản lý xuất khẩu nông sản",
+  "slug": "crm-system",
+  "industry": "Xuất nhập khẩu nông sản",
+  "year": "2026",
+  "clientName": "Doanh nghiệp xuất khẩu hạt điều",
+  "clientDisplay": "anonymized",
+  "dataClassification": "verified",
+  "tldr": "Infratek thiết kế và phát triển hệ thống CRM nối liền quy trình từ báo giá, hợp đồng, vận hành, QC và khiếu nại đến đối soát thanh toán.",
+  "challenge": "Quy trình trước đây phân tán trên Excel, email và tin nhắn. Dữ liệu báo giá, hợp đồng, lịch giao hàng, QC và công nợ không dùng chung một mã tham chiếu; đội vận hành thiếu cảnh báo chứng từ và khó truy vết khiếu nại về hợp đồng gốc.",
+  "solution": "Hệ thống chuẩn hóa bốn giai đoạn Sale, Contract, Operation và Payment trên một nguồn dữ liệu. Estimation đi qua bước duyệt trước khi sinh hợp đồng; Planning theo dõi chứng từ từng container; QC và Claim liên kết với Contract; các luồng thanh toán được quản lý riêng theo đối tượng.",
+  "architecture": [
+    {"nodeId":"sales","label":"Sale","nodeType":"input","description":"Lead, sản phẩm, campaign và estimation."},
+    {"nodeId":"contract","label":"Contract","nodeType":"process","description":"Hợp đồng từ Draft đến Signed và Completed."},
+    {"nodeId":"operation","label":"Operation","nodeType":"process","description":"Planning, QC và Claim theo Ref No hoặc Contract No."},
+    {"nodeId":"payment","label":"Payment","nodeType":"output","description":"Đối soát công nợ và trạng thái thanh toán."}
+  ],
+  "timeline": [
+    {"step":1,"title":"Chuẩn hóa đầu vào bán hàng","description":"Tập trung Lead, bảng giá, Campaign và Estimation."},
+    {"step":2,"title":"Số hóa hợp đồng","description":"Sinh và quản lý hợp đồng sau bước duyệt nội bộ."},
+    {"step":3,"title":"Theo dõi vận hành","description":"Quản lý Planning, chứng từ, QC và Claim theo container."},
+    {"step":4,"title":"Đối soát thanh toán","description":"Liên kết các khoản thanh toán với hợp đồng gốc."}
+  ],
+  "results": [
+    {"title":"Dữ liệu xuyên suốt","description":"Các phòng ban tra cứu thương vụ trên cùng mã tham chiếu."},
+    {"title":"Theo dõi vận hành tập trung","description":"Dashboard thể hiện hợp đồng, container và tình trạng xử lý."},
+    {"title":"Kiểm soát truy cập","description":"RBAC cấu hình quyền View, Add, Edit, Delete và quyền theo tab."}
+  ],
+  "metrics": [
+    {"value":146,"unit":"+","label":"Hợp đồng","howMeasured":"Nguồn: Dashboard Summary và portfolio CRM; tổng số hợp đồng hiển thị trong hệ thống tại thời điểm chụp.","measuredAt":"2026-08-31T00:00:00.000Z"},
+    {"value":234,"unit":"","label":"Container","howMeasured":"Nguồn: Dashboard Summary và portfolio CRM; tổng số container hiển thị trong hệ thống tại thời điểm chụp.","measuredAt":"2026-08-31T00:00:00.000Z"},
+    {"value":4,"unit":"","label":"Luồng thanh toán","howMeasured":"Nguồn: portfolio CRM; đếm bốn nhóm Payment được mô tả trong module Payments.","measuredAt":"2026-08-31T00:00:00.000Z"},
+    {"value":8,"unit":"","label":"Module nghiệp vụ","howMeasured":"Nguồn: portfolio CRM; đếm các module nghiệp vụ được liệt kê trong tài liệu.","measuredAt":"2026-08-31T00:00:00.000Z"}
+  ],
+  "solutionSlugs": ["software-development", "digital-transformation"],
+  "techStack": ["Web Application", "Relational Database", "Role-based Access Control"],
+  "featured": false,
+  "coverGradient": "from-emerald-600 to-cyan-500",
+  "seoTitle": "CRM quản lý xuất khẩu nông sản | Infratek Software",
+  "seoDescription": "Case study CRM số hóa quy trình xuất khẩu nông sản từ báo giá, hợp đồng và vận hành đến QC, khiếu nại và thanh toán.",
+  "reviewState": "editing",
+  "_status": "draft",
+  "images": [
+    {"file":"images/crm-dashboard-summary.png","altText":"Dashboard tổng quan hệ thống CRM: tổng số hợp đồng, container và tỉ lệ trạng thái hợp đồng"},
+    {"file":"images/crm-permissions-rbac.png","altText":"Màn hình phân quyền RBAC của hệ thống CRM theo module và thao tác"}
+  ]
+}

@@ -46,6 +46,11 @@ export interface CaseStudy {
   coverGradient: string;
   year: string;
   dataClassification: "verified" | "anonymized" | "illustrative";
+  solutionSlugs?: string[];
+  seoTitle?: string;
+  seoDescription?: string;
+  publishedAt?: string;
+  updatedAt?: string;
 }
 
 export interface ArchitectureNode {
@@ -66,6 +71,7 @@ export interface Metric {
   suffix: string;
   prefix?: string;
   description: string;
+  measuredAt?: string;
 }
 
 export interface BlogPost {

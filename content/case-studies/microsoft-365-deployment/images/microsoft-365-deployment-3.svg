@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675" role="img" aria-labelledby="title desc">
+<title id="title">Microsoft 365: Kết quả kỳ vọng</title><desc id="desc">Đồ họa minh họa, không phải ảnh chụp sản phẩm thật.</desc>
+<rect width="1200" height="675" fill="#f8fafc"/><rect x="70" y="70" width="1060" height="535" rx="36" fill="#fff" stroke="#e2e8f0" stroke-width="3"/>
+<circle cx="180" cy="180" r="62" fill="#0369a1" opacity=".14"/><path d="M150 180h60M180 150v60" stroke="#0369a1" stroke-width="14" stroke-linecap="round"/>
+<text x="280" y="175" font-family="Arial,sans-serif" font-size="54" font-weight="700" fill="#0f172a">Microsoft 365</text>
+<text x="280" y="225" font-family="Arial,sans-serif" font-size="26" fill="#475569">Triển khai công cụ làm việc</text>
+<rect x="130" y="310" width="280" height="150" rx="24" fill="#0369a1" opacity=".10"/><rect x="460" y="310" width="280" height="150" rx="24" fill="#0369a1" opacity=".16"/><rect x="790" y="310" width="280" height="150" rx="24" fill="#0369a1" opacity=".22"/>
+<path d="M410 385h50M740 385h50" stroke="#0369a1" stroke-width="8" stroke-linecap="round"/>
+<text x="130" y="535" font-family="Arial,sans-serif" font-size="30" font-weight="600" fill="#0f172a">Kết quả kỳ vọng</text>
+<text x="130" y="570" font-family="Arial,sans-serif" font-size="20" fill="#64748b">Hình minh họa nội bộ • không phải giao diện sản phẩm</text></svg>

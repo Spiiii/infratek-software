@@ -30,6 +30,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: "monthly" as const,
     priority: 0.8,
   }));
+  const caseStudyFilterPages: MetadataRoute.Sitemap = [
+    ...new Set(caseStudies.map((item) => item.industry)),
+  ].map((industry) => ({ url: `${baseUrl}/case-studies?industry=${encodeURIComponent(industry)}`, changeFrequency: "monthly" as const, priority: 0.6 }));
+  const solutionFilterPages: MetadataRoute.Sitemap = solutions
+    .filter((solution) => caseStudies.some((item) => (item.solutionSlugs ?? []).includes(solution.slug)))
+    .map((solution) => ({ url: `${baseUrl}/case-studies?solution=${solution.slug}`, changeFrequency: "monthly" as const, priority: 0.6 }));
 
   const blogPages: MetadataRoute.Sitemap = blogPosts.map((post) => ({
     url: `${baseUrl}/blog/${post.slug}`,
@@ -38,5 +44,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.7,
   }));
 
-  return [...staticPages, ...solutionPages, ...caseStudyPages, ...blogPages, ...resourcePages];
+  return [...staticPages, ...solutionPages, ...caseStudyPages, ...caseStudyFilterPages, ...solutionFilterPages, ...blogPages, ...resourcePages];
 }

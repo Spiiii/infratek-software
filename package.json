@@ -23,6 +23,8 @@
     "verify:phase3": "tsx scripts/verify-phase3.ts",
     "verify:phase3:migration-guard": "tsx scripts/test-migration-target-guard.ts",
     "verify:production-admin": "tsx scripts/verify-production-admin.ts",
+    "verify:phase4:draft-isolation": "node scripts/verify-phase4-draft-isolation.ts",
+    "verify:phase4:packages": "node scripts/verify-phase4-packages.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint ."
   },
