@@ -102,6 +102,9 @@ const casePackages = await Promise.all(packageDirectories.filter((entry) => entr
 
 const mimeType = (filename: string) => filename.endsWith(".svg") ? "image/svg+xml" : "image/png";
 const ensureMedia = async (directory: string, image: { file: string; altText: string }) => {
+  if (!dryRun && !process.env.BLOB_READ_WRITE_TOKEN) {
+    throw new Error("BLOB_READ_WRITE_TOKEN is required to seed Phase 4 media; refusing local-disk fallback.");
+  }
   const absolutePath = path.join(directory, image.file);
   const data = await readFile(absolutePath);
   const name = path.basename(absolutePath);
