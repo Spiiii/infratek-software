@@ -66,6 +66,7 @@ Status: **Chờ chủ dự án xác nhận đóng Giai đoạn 3** — toàn b�
 | Media thiếu `altText` | Upload qua Payload Admin bị từ chối với `The following field is invalid: Alt Text` |
 | Blob upload thật | Payload Media ID `1`, `1.png`, 110265 bytes, 1748×788, `image/png`; alt text đúng nội dung được duyệt |
 | Blob URL trực tiếp | `https://0krlas00jkd6rp2e.public.blob.vercel-storage.com/infratek-media/2a66c6da-bce7-4714-8c8d-fa8e8d2dfb55/1.png`: HTTP 200, `Content-Type: image/png`, hiển thị 1748×788 |
+| Dọn Blob mồ côi | Đã xóa object key `96347f61-4d40-4e69-bccf-43f4a83b2684` khỏi Blob store Preview ngày 2026-09-29; URL cũ trả HTTP 404, trong khi URL Media ID `1` vẫn trả HTTP 200 `image/png` |
 | Production migration guard | Write bị chặn khi thiếu xác nhận riêng |
 | Production content source | `CONTENT_SOURCE` không tồn tại trong Production scope; code dùng static |
 | Production bootstrap admin | Payload login pass; role là `admin` |
@@ -102,7 +103,7 @@ Runner đã được sửa để lỗi này không lặp lại. Chưa tự chạ
 ## Audit lỗi và việc còn tồn tại
 
 1. `BLOB_READ_WRITE_TOKEN` đã được tạo và giới hạn ở Preview. Blob store `infratek-phase3-preview` là Public, vùng SIN1; ảnh thật đã được upload thành công qua Payload Media.
-2. Lần thử thiếu `altText` bị Payload từ chối bản ghi đúng thiết kế. Vì client upload diễn ra trước validation record, thử nghiệm này để lại một Blob ảnh trùng không gắn với Media record tại object key `96347f61-4d40-4e69-bccf-43f4a83b2684`. Không tự xóa vì xóa dữ liệu cloud cần xác nhận riêng.
+2. Lần thử thiếu `altText` bị Payload từ chối bản ghi đúng thiết kế. Blob ảnh trùng không gắn với Media record tại object key `96347f61-4d40-4e69-bccf-43f4a83b2684` đã được chủ dự án xác nhận cho xóa và đã xóa khỏi Blob store Preview ngày 2026-09-29.
 3. Production đã nhận schema Phase 3 sớm như mô tả trên; chủ dự án đã chọn phương án 1: giữ nguyên schema Production và không cutover `CONTENT_SOURCE` cho tới quyết định riêng.
 4. Cảnh báo `pg` về semantics tương lai của `sslmode=require` không chặn hiện tại; connection đang mã hóa TLS, cần rà lại khi nâng major `pg-connection-string`/`pg`.
 5. `npm audit` báo 7 mục (1 low, 6 moderate). Không tự nâng version ngoài phạm vi vì Next/Payload đang pin theo spike.
