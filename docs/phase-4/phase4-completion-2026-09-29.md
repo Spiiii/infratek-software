@@ -74,8 +74,9 @@ Database state và direct route của cả bảy slug đã đạt trên Preview.
 
 1. Chạy lại `verify:phase4:draft-isolation` với Vercel protection-bypass token (hoặc một Preview tạm không bật Deployment Protection) để có bằng chứng HTTP/API tự động đầy đủ.
 2. Kiểm tra filter, quan hệ hai chiều trong CMS và Rich Results Test trên URL Preview thật.
-3. Xóa biến triển khai tạm `PHASE4_SEED_ON_BUILD` sau khi chủ dự án xác nhận thao tác xóa cấu hình cloud.
-4. SMTP `550 5.7.1` vẫn deferred theo ngoại lệ Giai đoạn 1, không thuộc phạm vi này.
+3. SMTP `550 5.7.1` vẫn deferred theo ngoại lệ Giai đoạn 1, không thuộc phạm vi này.
+
+Biến Preview tạm `PHASE4_SEED_ON_BUILD` đã được xóa khỏi Vercel ngày 2026-09-30 sau khi chủ dự án xác nhận. Tìm lại đúng tên biến trên trang Environment Variables trả về `No Results Found`; mã nguồn từ commit `6d66cf9` cũng không còn build hook phụ thuộc biến này.
 
 ## Checklist điều kiện hoàn thành Giai đoạn 4
 
