@@ -28,9 +28,9 @@
   ],
   "metrics": [
     {"value":146,"unit":"+","label":"Hợp đồng","howMeasured":"Nguồn: Dashboard Summary và portfolio CRM; tổng số hợp đồng hiển thị trong hệ thống tại thời điểm chụp.","measuredAt":"2026-08-31T00:00:00.000Z"},
-    {"value":234,"unit":"","label":"Container","howMeasured":"Nguồn: Dashboard Summary và portfolio CRM; tổng số container hiển thị trong hệ thống tại thời điểm chụp.","measuredAt":"2026-08-31T00:00:00.000Z"},
-    {"value":4,"unit":"","label":"Luồng thanh toán","howMeasured":"Nguồn: portfolio CRM; đếm bốn nhóm Payment được mô tả trong module Payments.","measuredAt":"2026-08-31T00:00:00.000Z"},
-    {"value":8,"unit":"","label":"Module nghiệp vụ","howMeasured":"Nguồn: portfolio CRM; đếm các module nghiệp vụ được liệt kê trong tài liệu.","measuredAt":"2026-08-31T00:00:00.000Z"}
+    {"value":234,"unit":"container","label":"Container","howMeasured":"Nguồn: Dashboard Summary và portfolio CRM; tổng số container hiển thị trong hệ thống tại thời điểm chụp.","measuredAt":"2026-08-31T00:00:00.000Z"},
+    {"value":4,"unit":"luồng","label":"Luồng thanh toán","howMeasured":"Nguồn: portfolio CRM; đếm bốn nhóm Payment được mô tả trong module Payments.","measuredAt":"2026-08-31T00:00:00.000Z"},
+    {"value":8,"unit":"module","label":"Module nghiệp vụ","howMeasured":"Nguồn: portfolio CRM; đếm các module nghiệp vụ được liệt kê trong tài liệu.","measuredAt":"2026-08-31T00:00:00.000Z"}
   ],
   "solutionSlugs": ["software-development", "digital-transformation"],
   "techStack": ["Web Application", "Relational Database", "Role-based Access Control"],
