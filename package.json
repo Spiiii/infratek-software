@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/vercel-build.mjs",
+    "build": "next build",
     "start": "next start",
     "payload": "payload",
     "payload:generate-types": "payload generate:types",
