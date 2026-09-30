@@ -11,6 +11,7 @@ import config from "../payload.config";
 nextEnv.loadEnvConfig(process.cwd());
 
 const dryRun = process.argv.includes("--dry-run");
+const allowConflicts = process.argv.includes("--allow-conflicts");
 const payload = await getPayload({ config });
 const report = { create: 0, update: 0, unchanged: 0, conflict: 0 };
 
@@ -214,4 +215,4 @@ console.log(JSON.stringify({ dryRun, ...report }, null, 2));
 // Payload's Postgres adapter keeps background handles alive in this standalone
 // script, so terminate explicitly after every awaited write has completed.
 await new Promise((resolve) => setTimeout(resolve, 50));
-process.exit(report.conflict > 0 ? 2 : 0);
+process.exit(report.conflict > 0 && !allowConflicts ? 2 : 0);
