@@ -50,9 +50,13 @@ Hoàn thiện nền tảng nội dung case study trên Payload, bổ sung quan h
 | `npm run verify:phase4:packages` | PASS; 7 draft package, đúng phân loại và số ảnh |
 | Seed Neon Preview | PASS ngày 2026-09-30; 7/7 case tồn tại với `_status=draft`, `reviewState=editing`; CRM `verified`, 6 case còn lại `illustrative` |
 | Media seed | PASS qua Vercel Preview có Blob credential; seed idempotent và 4 case cũ có chỉnh sửa CMS được báo conflict rồi bỏ qua |
-| Direct route draft | PASS qua Preview đã xác thực Vercel; cả 7 slug hiển thị trang `404 / Trang không tồn tại` khi chưa đăng nhập Payload |
-| Draft-isolation script trên URL public | Bị Vercel Deployment Protection trả `302` sang SSO trước khi request tới ứng dụng; không phải rò rỉ nội dung. Cần chạy lại bằng protection-bypass token hoặc tắt protection tạm thời |
-| Rich Results Test trên Preview | Chưa chạy, chờ Preview deployment |
+| Quan hệ CMS | PASS qua Payload REST API `depth=3`: `camera-ai-transformation` resolve tới `digital-transformation` và chiều Solution resolve lại đúng Case Study |
+| Direct route draft | PASS qua stable Preview alias trong cửa sổ kiểm thử public tạm thời; cả 7 slug trả HTTP `404` |
+| Draft-isolation script trên URL public | PASS; 9 public surfaces, REST API `depth=3`, 7/7 direct route và token nhận diện draft đều được kiểm tra; không phát hiện rò rỉ HTML, sitemap, relationship lồng hoặc media/image |
+| Published route sanity | PASS; 4/4 case published trả HTTP `200` |
+| Structured data HTTP | PASS; homepage và listing có `Organization` + `WebSite`; detail Camera AI có `Article` + `BreadcrumbList`; JSON-LD parse hợp lệ và không chứa draft |
+| Google Rich Results Test | Phát hiện Article, Breadcrumb, Local Business và Organization hợp lệ. Google không crawl/index Preview bình thường; ghi nhận là giới hạn external Preview, không phải lỗi ứng dụng |
+| Khôi phục Deployment Protection | PASS; exception chỉ mở tạm để verification rồi được owner xóa. Anonymous probe cuối trả HTTP `302` tới Vercel SSO |
 
 ## Kiểm tra chống rò rỉ
 
@@ -64,7 +68,9 @@ Script `scripts/verify-phase4-draft-isolation.ts` kiểm tra đồng thời:
 - truy cập ẩn danh trực tiếp cả bảy slug phải trả `404`;
 - response không chứa tên, slug hoặc tên ảnh của CRM và sáu case minh họa.
 
-Database state và direct route của cả bảy slug đã đạt trên Preview. Kiểm tra tự động toàn bộ public surface chưa thể kết luận đạt vì Vercel Deployment Protection chặn client không có phiên đăng nhập bằng `302` trước lớp ứng dụng; đây vẫn là mục mở.
+Database state và toàn bộ public surface đã được xác minh trên stable Preview alias trong một cửa sổ public tạm thời do owner kiểm soát. Sau khi kiểm tra hoàn tất, owner đã xóa Deployment Protection Exception; anonymous probe cuối xác nhận HTTP `302` tới Vercel SSO.
+
+Các thay đổi diagnostic trước đó trong `scripts/verify-phase4-draft-isolation.ts` (tự nạp `.env.local` và tự gửi `x-vercel-protection-bypass`) được phân loại là **temporary diagnostic** và đã hoàn nguyên. Script dài hạn tiếp tục độc lập với local secret để không vô tình che khuất lỗi Deployment Protection hoặc biến một phép kiểm tra anonymous thành authenticated/bypassed.
 
 ## Content backlog
 
@@ -72,9 +78,8 @@ Database state và direct route của cả bảy slug đã đạt trên Preview.
 
 ## Audit lỗi và việc còn mở
 
-1. Chạy lại `verify:phase4:draft-isolation` với Vercel protection-bypass token (hoặc một Preview tạm không bật Deployment Protection) để có bằng chứng HTTP/API tự động đầy đủ.
-2. Kiểm tra filter, quan hệ hai chiều trong CMS và Rich Results Test trên URL Preview thật.
-3. SMTP `550 5.7.1` vẫn deferred theo ngoại lệ Giai đoạn 1, không thuộc phạm vi này.
+1. Google không crawl/index stable Preview alias bình thường dù Rich Results Test vẫn phát hiện các structured-data item hợp lệ. Đây là giới hạn external Preview và không chặn đóng Giai đoạn 4.
+2. SMTP `550 5.7.1` vẫn deferred theo ngoại lệ Giai đoạn 1, không thuộc phạm vi này.
 
 Biến Preview tạm `PHASE4_SEED_ON_BUILD` đã được xóa khỏi Vercel ngày 2026-09-30 sau khi chủ dự án xác nhận. Tìm lại đúng tên biến trên trang Environment Variables trả về `No Results Found`; mã nguồn từ commit `6d66cf9` cũng không còn build hook phụ thuộc biến này.
 
@@ -87,8 +92,18 @@ Biến Preview tạm `PHASE4_SEED_ON_BUILD` đã được xóa khỏi Vercel ng�
 - [x] Microsoft 365 và Odoo chỉ được mô tả là triển khai, không dùng logo hoặc tuyên bố đối tác.
 - [x] Có Article/Breadcrumb và OG 1200×630 cho route case study.
 - [x] Có URL filter crawlable theo ngành và solution.
-- [ ] Quan hệ hai chiều hoạt động trên CMS Preview. Dữ liệu đã seed; còn kiểm tra UI/API Preview.
-- [ ] Cả 7 case draft không lộ qua public route/API/sitemap. Direct route 7/7 đã 404; kiểm tra tự động toàn surface bị Vercel SSO trả 302.
-- [ ] Rich Results Test trên URL Preview thật. Preview đã có; chưa chạy.
+- [x] Quan hệ hai chiều hoạt động trên CMS Preview; đã xác minh read-only qua Payload REST API `depth=3`.
+- [x] Cả 7 case draft không lộ qua public route/API/sitemap; direct route 7/7 trả 404 và toàn bộ public-surface verification đạt.
+- [x] Rich Results Test đã chạy trên URL Preview thật và phát hiện các item hợp lệ; crawl/index external bị giới hạn trên Preview và được ghi nhận riêng.
 
-Giai đoạn 4 **chưa được tự đánh dấu hoàn tất**. Chủ dự án xác nhận đóng sau khi các mục Preview còn mở có đủ bằng chứng.
+## Kết luận đóng giai đoạn
+
+Giai đoạn 4 đã có đủ bằng chứng kỹ thuật để **READY TO CLOSE**. Quyền truy cập public tạm thời chỉ được dùng cho verification và đã được gỡ; Deployment Protection đã được xác nhận khôi phục. Việc commit và xác nhận đóng chính thức vẫn chờ owner phê duyệt.
+
+### Quality checks cuối — 2026-10-01
+
+- `npm run typecheck`: PASS.
+- `npm run lint`: PASS với 0 error, còn 1 warning `@next/next/no-img-element` tại trang chi tiết case study.
+- `npm run verify:phase4:packages`: PASS; 7 draft packages, CRM có 2 ảnh an toàn và 6 case minh họa có 3 đồ họa/case.
+- `npm run build`: PASS; sinh 37 trang và chỉ prerender 4 case study published.
+- Anonymous protection probe cuối: HTTP `302`, đích Vercel SSO; Deployment Protection restored.
