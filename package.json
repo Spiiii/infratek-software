@@ -25,7 +25,9 @@
     "verify:production-admin": "tsx scripts/verify-production-admin.ts",
     "verify:phase4:draft-isolation": "node scripts/verify-phase4-draft-isolation.ts",
     "verify:phase4:packages": "node scripts/verify-phase4-packages.ts",
-    "test:chat": "node --test --experimental-strip-types src/lib/chat/foundation.test.ts",
+    "reindex:chat": "tsx scripts/reindex-chat.ts",
+    "verify:rag:drafts": "tsx scripts/verify-rag-draft-isolation.ts",
+    "test:chat": "node --test --experimental-strip-types src/lib/chat/foundation.test.ts src/lib/chat/ingestion/ingestion.test.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint ."
   },
