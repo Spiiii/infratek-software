@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { readChatBuildSafeConfig } from "./config.ts";
@@ -73,4 +74,28 @@ test("system prompt preserves all safety and grounding invariants", () => {
   ];
 
   for (const invariant of required) assert.ok(prompt.includes(invariant), invariant);
+});
+
+test("P5.2 migration source preserves the database contract", async () => {
+  const migration = await readFile(
+    new URL("../../migrations/20261002_090000_phase5_chatbot_foundation.ts", import.meta.url),
+    "utf8",
+  );
+
+  for (const invariant of [
+    "CREATE EXTENSION IF NOT EXISTS vector",
+    "CREATE EXTENSION IF NOT EXISTS unaccent",
+    '"embedding" vector(768)',
+    "USING hnsw",
+    "vector_cosine_ops",
+    "USING gin",
+    'UNIQUE ("doc_type", "doc_id", "chunk_key")',
+    'CHECK ("vote" IN (-1, 1))',
+    'CHECK ("occurrence_count" >= 1)',
+    'UNIQUE ("question_hash")',
+  ]) {
+    assert.ok(migration.includes(invariant), invariant);
+  }
+
+  assert.doesNotMatch(migration, /DROP EXTENSION/i);
 });
