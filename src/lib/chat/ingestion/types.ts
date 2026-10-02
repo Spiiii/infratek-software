@@ -61,5 +61,15 @@ export type EmbeddedChunk = PreparedChunk & { embedding: number[] };
 
 export interface EmbeddingProvider {
   readonly calls: number;
+  readonly stats: EmbeddingProviderStats;
   embed(input: string): Promise<number[]>;
 }
+
+export type EmbeddingProviderStats = {
+  providerRequests: number;
+  successfulEmbeddings: number;
+  responses429: number;
+  responses5xx: number;
+  retryAttempts: number;
+  finalFailures: number;
+};

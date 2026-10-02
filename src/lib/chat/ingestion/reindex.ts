@@ -18,6 +18,7 @@ export type ReindexSummary = {
   delete: number;
   totalDesired: number;
   embeddingCalls: number;
+  embeddingStats?: EmbeddingProvider["stats"];
   dryRun: boolean;
 };
 
@@ -96,6 +97,7 @@ export async function runReindex(options: {
     delete: plan.deleteStale.length,
     totalDesired: plan.insert.length + plan.update.length + plan.unchanged.length,
     embeddingCalls: options.provider.calls,
+    embeddingStats: options.provider.stats,
     dryRun: false,
   };
 }
@@ -139,6 +141,7 @@ export async function runDocumentReindex(
     delete: plan.deleteStale.length,
     totalDesired: plan.insert.length + plan.update.length + plan.unchanged.length,
     embeddingCalls: options.provider.calls,
+    embeddingStats: options.provider.stats,
     dryRun: false,
   };
 }

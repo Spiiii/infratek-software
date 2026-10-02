@@ -2,14 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { CaseStudy, Faq, Solution } from "../../../payload-types.ts";
 import { chunkDocument } from "./chunk.ts";
+import { createGeminiEmbeddingProvider, inspectEmbeddingError, parseRetryAfter } from "./embed.ts";
 import { contentHash } from "./hash.ts";
 import { planIngestion } from "./plan.ts";
 import { prepareDocumentIngestionPlan } from "./reindex.ts";
+import { readIngestionRuntimeConfig } from "./runtime-config.ts";
 import { documentsFromSnapshot, type SourceSnapshot } from "./sources.ts";
 import type { ExistingChunk, IndexableDocument, IngestionVersions } from "./types.ts";
 
 const versions: IngestionVersions = {
-  embeddingModel: "gemini-embedding-2-preview",
+  embeddingModel: "gemini-embedding-2",
   embeddingVersion: "embedding-v1",
   ingestionVersion: "ingestion-v1",
 };
@@ -175,4 +177,84 @@ test("empty FAQ and company facts are skipped safely", () => {
   const snapshot = emptySnapshot();
   snapshot.faq = { id: 1, items: [] } as Faq;
   assert.deepEqual(documentsFromSnapshot(snapshot), []);
+});
+
+test("ingestion runtime config uses configurable pacing and retry defaults", () => {
+  const config = readIngestionRuntimeConfig({
+    GEMINI_EMBED_MODEL: "gemini-embedding-2",
+    GEMINI_EMBED_DIM: "768",
+  });
+  assert.equal(config.requestDelayMs, 1_000);
+  assert.equal(config.maxRetries, 3);
+  assert.equal(config.retryBaseMs, 5_000);
+  assert.equal(config.retryMaxMs, 60_000);
+});
+
+test("retry metadata parses provider RetryInfo and Retry-After", () => {
+  const error = Object.assign(
+    new Error(
+      JSON.stringify({
+        error: {
+          status: "RESOURCE_EXHAUSTED",
+          details: [{ "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "7s" }],
+        },
+      }),
+    ),
+    { status: 429 },
+  );
+  assert.deepEqual(inspectEmbeddingError(error), {
+    status: 429,
+    reason: "RESOURCE_EXHAUSTED",
+    retryDelayMs: 7_000,
+  });
+  assert.equal(parseRetryAfter("12"), 12_000);
+});
+
+test("embedding provider paces sequential calls and prefers provider retry delay", async () => {
+  const delays: number[] = [];
+  let attempts = 0;
+  const provider = createGeminiEmbeddingProvider({
+    apiKey: "test-key",
+    model: "gemini-embedding-2",
+    dimension: 768,
+    requestDelayMs: 1_000,
+    maxRetries: 3,
+    retryBaseMs: 5_000,
+    retryMaxMs: 60_000,
+    sleep: async (milliseconds) => {
+      delays.push(milliseconds);
+    },
+    embedContent: async () => {
+      attempts += 1;
+      if (attempts === 1) {
+        throw Object.assign(
+          new Error(
+            JSON.stringify({
+              error: {
+                status: "RESOURCE_EXHAUSTED",
+                details: [
+                  { "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "7s" },
+                ],
+              },
+            }),
+          ),
+          { status: 429 },
+        );
+      }
+      return { embeddings: [{ values: Array(768).fill(0.25) }] };
+    },
+  });
+
+  await provider.embed("first");
+  await provider.embed("second");
+  assert.equal(provider.calls, 3);
+  assert.deepEqual(delays, [7_000, 1_000]);
+  assert.deepEqual(provider.stats, {
+    providerRequests: 3,
+    successfulEmbeddings: 2,
+    responses429: 1,
+    responses5xx: 0,
+    retryAttempts: 1,
+    finalFailures: 0,
+  });
 });

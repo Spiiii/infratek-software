@@ -14,7 +14,7 @@ import { buildChatSystemPrompt, NO_INFORMATION_FALLBACK } from "./prompt.ts";
 test("build-safe defaults pin the approved P5.1 models and uncalibrated threshold", () => {
   const config = readChatBuildSafeConfig({});
   assert.equal(config.model.chat, "gemini-3.5-flash-lite");
-  assert.equal(config.model.embedding, "gemini-embedding-2-preview");
+  assert.equal(config.model.embedding, "gemini-embedding-2");
   assert.equal(config.model.embeddingDimension, 768);
   assert.equal(config.versioning.threshold, "UN-CALIBRATED");
   assert.equal(config.limits.outputMaxTokens, 256);

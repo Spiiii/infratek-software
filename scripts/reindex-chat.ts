@@ -2,7 +2,10 @@ import nextEnv from "@next/env";
 import { getPayload } from "payload";
 import config from "../payload.config.ts";
 import { assertMigrationTarget } from "./migration-target-guard.ts";
-import { createGeminiEmbeddingProvider } from "../src/lib/chat/ingestion/embed.ts";
+import {
+  createGeminiEmbeddingProvider,
+  EmbeddingProviderError,
+} from "../src/lib/chat/ingestion/embed.ts";
 import { RagChunkRepository } from "../src/lib/chat/ingestion/repository.ts";
 import { runReindex } from "../src/lib/chat/ingestion/reindex.ts";
 import { readIngestionRuntimeConfig } from "../src/lib/chat/ingestion/runtime-config.ts";
@@ -26,16 +29,40 @@ try {
         apiKey: runtime.apiKey!,
         model: runtime.versions.embeddingModel,
         dimension: runtime.dimension,
+        requestDelayMs: runtime.requestDelayMs,
+        maxRetries: runtime.maxRetries,
+        retryBaseMs: runtime.retryBaseMs,
+        retryMaxMs: runtime.retryMaxMs,
       });
-  const summary = await runReindex({
-    documents,
-    repository,
-    versions: runtime.versions,
-    dimension: runtime.dimension,
-    dryRun,
-    provider,
-  });
-  console.log(JSON.stringify(summary, null, 2));
+  try {
+    const summary = await runReindex({
+      documents,
+      repository,
+      versions: runtime.versions,
+      dimension: runtime.dimension,
+      dryRun,
+      provider,
+    });
+    console.log(JSON.stringify(summary, null, 2));
+  } catch (error) {
+    if (!(error instanceof EmbeddingProviderError) || !provider) throw error;
+    console.error(
+      JSON.stringify(
+        {
+          error: {
+            name: error.name,
+            status: error.status,
+            reason: error.reason,
+            retryDelayMs: error.retryDelayMs,
+          },
+          embeddingStats: provider.stats,
+        },
+        null,
+        2,
+      ),
+    );
+    process.exitCode = 1;
+  }
 } finally {
   await payload.db.destroy?.();
 }

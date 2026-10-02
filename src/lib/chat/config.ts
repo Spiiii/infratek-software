@@ -6,10 +6,10 @@ const positiveInteger = z.coerce.number().int().positive();
 
 const buildSafeSchema = z.object({
   CHAT_MODEL: z.string().trim().min(1).default("gemini-3.5-flash-lite"),
-  EMBED_MODEL: z.string().trim().min(1).default("gemini-embedding-2-preview"),
+  EMBED_MODEL: z.string().trim().min(1).default("gemini-embedding-2"),
   EMBED_DIMENSION: positiveInteger.max(3072).default(768),
   CHAT_MODEL_VERSION: z.string().trim().min(1).default("gemini-3.5-flash-lite-p5.1"),
-  EMBED_VERSION: z.string().trim().min(1).default("gemini-embedding-2-preview-768-p5.1"),
+  EMBED_VERSION: z.string().trim().min(1).default("gemini-embedding-2-768-p5.3"),
   PROMPT_VERSION: z.string().trim().min(1).default("p5.1"),
   THRESHOLD_VERSION: z.literal(UNCALIBRATED_THRESHOLD_VERSION).default(UNCALIBRATED_THRESHOLD_VERSION),
   INGESTION_VERSION: z.string().trim().min(1).default("p5.1"),
