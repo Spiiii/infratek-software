@@ -66,6 +66,16 @@ export class EmbeddingProviderError extends Error {
   }
 }
 
+export class EmbeddingResponseError extends Error {
+  readonly code: "MISSING_EMBEDDING" | "WRONG_DIMENSION";
+
+  constructor(code: "MISSING_EMBEDDING" | "WRONG_DIMENSION") {
+    super("Embedding provider returned an invalid response");
+    this.name = "EmbeddingResponseError";
+    this.code = code;
+  }
+}
+
 export function createGeminiEmbeddingProvider(options: {
   apiKey: string;
   model: string;
@@ -134,8 +144,9 @@ export function createGeminiEmbeddingProvider(options: {
             },
           });
           const values = response.embeddings?.[0]?.values;
-          if (!values || values.length !== options.dimension) {
-            throw new Error("Embedding provider returned an unexpected dimension");
+          if (!values) throw new EmbeddingResponseError("MISSING_EMBEDDING");
+          if (values.length !== options.dimension) {
+            throw new EmbeddingResponseError("WRONG_DIMENSION");
           }
           stats.successfulEmbeddings += 1;
           return values;

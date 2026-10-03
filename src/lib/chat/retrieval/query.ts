@@ -13,8 +13,14 @@ export class RetrievalQueryValidationError extends Error {
   }
 }
 
+declare const preparedRetrievalQueryValue: unique symbol;
+
+export type PreparedRetrievalQueryValue = string & {
+  readonly [preparedRetrievalQueryValue]: true;
+};
+
 export type PreparedRetrievalQuery = {
-  value: string;
+  value: PreparedRetrievalQueryValue;
   containsPii: boolean;
   redactions: { emails: number; phones: number };
   inputLength: number;
@@ -34,7 +40,7 @@ export function prepareRetrievalQuery(
   if (!value) throw new RetrievalQueryValidationError("EMPTY");
 
   return {
-    value,
+    value: value as PreparedRetrievalQueryValue,
     containsPii: redacted.containsPii,
     redactions: redacted.redactions,
     inputLength: input.length,
