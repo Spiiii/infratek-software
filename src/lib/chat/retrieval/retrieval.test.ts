@@ -12,8 +12,9 @@ import {
 } from "./config.ts";
 import { prepareRetrievalQuery, RetrievalQueryValidationError } from "./query.ts";
 import { createQueryEmbeddingAdapter, QueryEmbeddingError } from "./query-embedding.ts";
+import { candidateIdentity, fuseAndSelectSources, fuseCandidates } from "./fusion.ts";
 import { FtsRetrievalRepository, VectorRetrievalRepository } from "./repository.ts";
-import type { RetrievalStatus } from "./types.ts";
+import type { FtsCandidate, RetrievalStatus, VectorCandidate } from "./types.ts";
 
 function assertValidationCode(input: unknown, code: RetrievalQueryValidationError["code"]) {
   assert.throws(
@@ -342,4 +343,147 @@ test("FTS repository maps deterministic Top 20 diagnostics and filters malformed
   assert.deepEqual(Object.keys(result.candidates[0].diagnostics), ["ftsRank", "ftsScore"]);
   assert.equal("vectorRank" in result.candidates[0].diagnostics, false);
   assert.equal("rrfScore" in result.candidates[0].diagnostics, false);
+});
+
+function candidateMetadata(id: string, docId = id, chunkKey = "overview") {
+  return {
+    id,
+    docType: "solution" as const,
+    docId,
+    chunkKey,
+    title: id,
+    headingPath: ["Tổng quan"],
+    content: `Nội dung ${id}`,
+    url: `/solutions/${id}`,
+  };
+}
+
+function vectorCandidate(
+  id: string,
+  rank: number,
+  distance = 0.2,
+  docId = id,
+  chunkKey = "overview",
+): VectorCandidate {
+  return {
+    ...candidateMetadata(id, docId, chunkKey),
+    diagnostics: { vectorRank: rank, vectorDistance: distance, vectorSimilarity: 1 - distance },
+  };
+}
+
+function ftsCandidate(
+  id: string,
+  rank: number,
+  score = 0.5,
+  docId = id,
+  chunkKey = "overview",
+): FtsCandidate {
+  return {
+    ...candidateMetadata(id, docId, chunkKey),
+    diagnostics: { ftsRank: rank, ftsScore: score },
+  };
+}
+
+test("RRF applies k=60 without similarity or FTS-score weighting", () => {
+  const fused = fuseCandidates(
+    [vectorCandidate("a", 1, 0.99), vectorCandidate("b", 2, 0.01)],
+    [ftsCandidate("a", 3, 0.01), ftsCandidate("c", 1, 999)],
+  );
+  const byId = new Map(fused.map((candidate) => [candidate.id, candidate]));
+
+  assert.equal(byId.get("a")?.diagnostics.rrfScore, 1 / 61 + 1 / 63);
+  assert.equal(byId.get("b")?.diagnostics.rrfScore, 1 / 62);
+  assert.equal(byId.get("c")?.diagnostics.rrfScore, 1 / 61);
+  assert.equal(fused[0].id, "a");
+  assert.deepEqual(byId.get("a")?.diagnostics, {
+    vectorRank: 1,
+    vectorDistance: 0.99,
+    vectorSimilarity: 0.010000000000000009,
+    ftsRank: 3,
+    ftsScore: 0.01,
+    rrfScore: 1 / 61 + 1 / 63,
+  });
+  assert.equal("ftsRank" in byId.get("b")!.diagnostics, false);
+  assert.equal("vectorRank" in byId.get("c")!.diagnostics, false);
+});
+
+test("RRF defensively deduplicates each retriever using the best-ranked diagnostics", () => {
+  const result = fuseCandidates(
+    [vectorCandidate("a-worse", 4, 0.1, "same"), vectorCandidate("a-best", 1, 0.3, "same")],
+    [ftsCandidate("f-worse", 5, 0.9, "same"), ftsCandidate("f-best", 2, 0.2, "same")],
+  );
+
+  assert.equal(result.length, 1);
+  assert.equal(candidateIdentity(result[0]), "solution\u0000same\u0000overview");
+  assert.equal(result[0].id, "a-best");
+  assert.deepEqual(result[0].diagnostics, {
+    vectorRank: 1,
+    vectorDistance: 0.3,
+    vectorSimilarity: 0.7,
+    ftsRank: 2,
+    ftsScore: 0.2,
+    rrfScore: 1 / 61 + 1 / 62,
+  });
+});
+
+test("RRF ordering follows rank, distance presence/value, FTS score, and identity", () => {
+  const vectors = [
+    vectorCandidate("distance-b", 2, 0.4),
+    vectorCandidate("distance-a", 2, 0.2),
+    vectorCandidate("identity-b", 3, 0.3),
+    vectorCandidate("identity-a", 3, 0.3),
+  ];
+  const fullText = [
+    ftsCandidate("fts-high", 2, 0.8),
+    ftsCandidate("fts-low", 2, 0.2),
+  ];
+  const first = fuseCandidates(vectors, fullText).map((candidate) => candidate.id);
+  const second = fuseCandidates([...vectors], [...fullText]).map((candidate) => candidate.id);
+
+  assert.deepEqual(first, [
+    "distance-a",
+    "distance-b",
+    "fts-high",
+    "fts-low",
+    "identity-a",
+    "identity-b",
+  ]);
+  assert.deepEqual(second, first);
+});
+
+test("selection returns zero, fewer than six, exactly six, and caps at six with S labels", () => {
+  assert.deepEqual(fuseAndSelectSources([], []).selectedSources, []);
+  assert.equal(fuseAndSelectSources([vectorCandidate("one", 1)], []).selectedSources.length, 1);
+
+  const six = Array.from({ length: 6 }, (_, index) => vectorCandidate(`v${index}`, index + 1));
+  assert.deepEqual(
+    fuseAndSelectSources(six, []).selectedSources.map((source) => source.source.label),
+    ["S1", "S2", "S3", "S4", "S5", "S6"],
+  );
+  const seven = [...six, vectorCandidate("v6", 7)];
+  assert.equal(fuseAndSelectSources(seven, []).selectedSources.length, 6);
+});
+
+test("concentration diagnostics do not impose a diversity cap or change ordering", () => {
+  const vectors = [
+    vectorCandidate("a1", 1, 0.1, "document-a", "one"),
+    vectorCandidate("a2", 2, 0.2, "document-a", "two"),
+    vectorCandidate("a3", 3, 0.3, "document-a", "three"),
+    vectorCandidate("b1", 4, 0.4, "document-b", "one"),
+  ];
+  const result = fuseAndSelectSources(vectors, []);
+
+  assert.deepEqual(result.selectedSources.map((source) => source.source.chunkKey), [
+    "one",
+    "two",
+    "three",
+    "one",
+  ]);
+  assert.deepEqual(result.concentration, {
+    selectedCount: 4,
+    distinctDocumentCount: 2,
+    maxChunksFromSingleDocument: 3,
+    documentConcentration: 0.75,
+  });
+  assert.deepEqual(RETRIEVAL_THRESHOLD, { state: "UN-CALIBRATED" });
 });
