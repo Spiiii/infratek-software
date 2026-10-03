@@ -12,7 +12,7 @@ import {
 } from "./config.ts";
 import { prepareRetrievalQuery, RetrievalQueryValidationError } from "./query.ts";
 import { createQueryEmbeddingAdapter, QueryEmbeddingError } from "./query-embedding.ts";
-import { VectorRetrievalRepository } from "./repository.ts";
+import { FtsRetrievalRepository, VectorRetrievalRepository } from "./repository.ts";
 import type { RetrievalStatus } from "./types.ts";
 
 function assertValidationCode(input: unknown, code: RetrievalQueryValidationError["code"]) {
@@ -291,4 +291,55 @@ test("vector repository uses parameters and maps deterministic Top 20 diagnostic
   ]);
   assert.ok(typeof capturedParameters[0] === "string");
   assert.doesNotMatch(capturedSql, /0\.01/);
+});
+
+test("FTS repository passes only the prepared query as a SQL parameter", async () => {
+  let capturedSql = "";
+  let capturedParameters: unknown[] = [];
+  const repository = new FtsRetrievalRepository({
+    async query(sql, parameters) {
+      capturedSql = sql;
+      capturedParameters = parameters;
+      return { rows: [] };
+    },
+  });
+  const prepared = prepareRetrievalQuery("Email a@b.vn hỏi về doanh nghiệp", {});
+  const result = await repository.findTopCandidates(prepared);
+
+  assert.deepEqual(result, { candidates: [], invalidRowCount: 0 });
+  assert.deepEqual(capturedParameters, ["Email [EMAIL] hỏi về doanh nghiệp", 20]);
+  assert.match(capturedSql, /plainto_tsquery\('simple', public\.f_unaccent\(\$1\)\)/);
+  assert.match(capturedSql, /search_vector @@ query\.value/);
+  assert.match(capturedSql, /LIMIT \$2/);
+  assert.doesNotMatch(capturedSql, /Email|doanh nghiệp/);
+});
+
+test("FTS repository maps deterministic Top 20 diagnostics and filters malformed rows", async () => {
+  const rows = [
+    vectorRow({ id: "b", doc_id: "2", chunk_key: "b", fts_score: 0.9 }),
+    vectorRow({ id: "a", doc_id: "1", chunk_key: "a", fts_score: 0.9 }),
+    ...Array.from({ length: 19 }, (_, index) =>
+      vectorRow({
+        id: `fts-${index}`,
+        doc_id: String(index + 10),
+        chunk_key: `fts-${index}`,
+        fts_score: 0.8 - index / 100,
+      }),
+    ),
+    vectorRow({ id: "invalid", url: "//private.example/path", fts_score: 1 }),
+  ];
+  const repository = new FtsRetrievalRepository({
+    async query() {
+      return { rows };
+    },
+  });
+  const result = await repository.findTopCandidates(prepareRetrievalQuery("Camera AI", {}));
+
+  assert.equal(result.candidates.length, 20);
+  assert.equal(result.invalidRowCount, 1);
+  assert.equal(result.candidates[0].id, "a");
+  assert.deepEqual(result.candidates[0].diagnostics, { ftsRank: 1, ftsScore: 0.9 });
+  assert.deepEqual(Object.keys(result.candidates[0].diagnostics), ["ftsRank", "ftsScore"]);
+  assert.equal("vectorRank" in result.candidates[0].diagnostics, false);
+  assert.equal("rrfScore" in result.candidates[0].diagnostics, false);
 });

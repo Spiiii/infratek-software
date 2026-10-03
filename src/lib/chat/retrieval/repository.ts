@@ -1,7 +1,8 @@
 import { readChatBuildSafeConfig } from "../config.ts";
 import type { IndexableDocType } from "../ingestion/types.ts";
-import { VECTOR_CANDIDATE_LIMIT } from "./config.ts";
-import type { VectorCandidate } from "./types.ts";
+import { FTS_CANDIDATE_LIMIT, VECTOR_CANDIDATE_LIMIT } from "./config.ts";
+import type { PreparedRetrievalQuery } from "./query.ts";
+import type { CandidateMetadata, FtsCandidate, VectorCandidate } from "./types.ts";
 
 type QueryResult = { rows: Array<Record<string, unknown>> };
 export type RetrievalQueryExecutor = {
@@ -10,6 +11,11 @@ export type RetrievalQueryExecutor = {
 
 export type VectorSearchResult = {
   candidates: VectorCandidate[];
+  invalidRowCount: number;
+};
+
+export type FtsSearchResult = {
+  candidates: FtsCandidate[];
   invalidRowCount: number;
 };
 
@@ -31,7 +37,7 @@ function isPublicPath(value: unknown): value is string {
   );
 }
 
-function toCandidate(row: Record<string, unknown>): Omit<VectorCandidate, "diagnostics"> | null {
+function toCandidate(row: Record<string, unknown>): CandidateMetadata | null {
   if (
     typeof row.id !== "string" ||
     typeof row.doc_type !== "string" ||
@@ -56,6 +62,14 @@ function toCandidate(row: Record<string, unknown>): Omit<VectorCandidate, "diagn
     content: row.content,
     url: row.url,
   };
+}
+
+function compareIdentity(left: CandidateMetadata, right: CandidateMetadata) {
+  return (
+    left.docType.localeCompare(right.docType) ||
+    left.docId.localeCompare(right.docId) ||
+    left.chunkKey.localeCompare(right.chunkKey)
+  );
 }
 
 function validateVector(vector: number[], dimension: number) {
@@ -113,10 +127,7 @@ export class VectorRetrievalRepository {
     });
     mapped.sort(
       (left, right) =>
-        left.distance - right.distance ||
-        left.candidate.docType.localeCompare(right.candidate.docType) ||
-        left.candidate.docId.localeCompare(right.candidate.docId) ||
-        left.candidate.chunkKey.localeCompare(right.candidate.chunkKey),
+        left.distance - right.distance || compareIdentity(left.candidate, right.candidate),
     );
 
     return {
@@ -126,6 +137,57 @@ export class VectorRetrievalRepository {
           vectorRank: index + 1,
           vectorDistance: item.distance,
           vectorSimilarity: item.similarity,
+        },
+      })),
+      invalidRowCount,
+    };
+  }
+}
+
+export class FtsRetrievalRepository {
+  private readonly executor: RetrievalQueryExecutor;
+
+  constructor(executor: RetrievalQueryExecutor) {
+    this.executor = executor;
+  }
+
+  async findTopCandidates(query: PreparedRetrievalQuery): Promise<FtsSearchResult> {
+    const result = await this.executor.query(
+      `WITH query AS (
+         SELECT plainto_tsquery('simple', public.f_unaccent($1)) AS value
+       )
+       SELECT id, doc_type, doc_id, chunk_key, title, heading_path, content, url,
+              ts_rank_cd(search_vector, query.value, 32) AS fts_score
+       FROM rag_chunks
+       CROSS JOIN query
+       WHERE search_vector @@ query.value
+       ORDER BY fts_score DESC,
+                doc_type ASC, doc_id ASC, chunk_key ASC
+       LIMIT $2`,
+      [query.value, FTS_CANDIDATE_LIMIT],
+    );
+
+    let invalidRowCount = 0;
+    const mapped = result.rows.flatMap((row) => {
+      const candidate = toCandidate(row);
+      const score = Number(row.fts_score);
+      if (!candidate || !Number.isFinite(score)) {
+        invalidRowCount += 1;
+        return [];
+      }
+      return [{ candidate, score }];
+    });
+    mapped.sort(
+      (left, right) =>
+        right.score - left.score || compareIdentity(left.candidate, right.candidate),
+    );
+
+    return {
+      candidates: mapped.slice(0, FTS_CANDIDATE_LIMIT).map((item, index) => ({
+        ...item.candidate,
+        diagnostics: {
+          ftsRank: index + 1,
+          ftsScore: item.score,
         },
       })),
       invalidRowCount,
