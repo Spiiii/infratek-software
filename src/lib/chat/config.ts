@@ -18,6 +18,7 @@ const buildSafeSchema = z.object({
   CHAT_SESSION_CAP: positiveInteger.default(30),
   CHAT_DAILY_CAP: positiveInteger.default(150),
   CHAT_INPUT_MAX_LENGTH: positiveInteger.default(500),
+  EMBED_INTERACTIVE_TIMEOUT_MS: positiveInteger.default(15_000),
   CHAT_CONTEXT_MESSAGES: positiveInteger.default(6),
   CHAT_OUTPUT_MAX_TOKENS: positiveInteger.default(256),
   CHAT_CONVERSATION_RETENTION_DAYS: positiveInteger.default(30),
@@ -44,6 +45,7 @@ export type ChatBuildSafeConfig = {
     session: number;
     daily: number;
     inputMaxLength: number;
+    embeddingTimeoutMs: number;
     contextMessages: number;
     outputMaxTokens: number;
   };
@@ -76,6 +78,7 @@ export function readChatBuildSafeConfig(
       session: value.CHAT_SESSION_CAP,
       daily: value.CHAT_DAILY_CAP,
       inputMaxLength: value.CHAT_INPUT_MAX_LENGTH,
+      embeddingTimeoutMs: value.EMBED_INTERACTIVE_TIMEOUT_MS,
       contextMessages: value.CHAT_CONTEXT_MESSAGES,
       outputMaxTokens: value.CHAT_OUTPUT_MAX_TOKENS,
     },

@@ -84,6 +84,7 @@ export function createGeminiEmbeddingProvider(options: {
   maxRetries: number;
   retryBaseMs: number;
   retryMaxMs: number;
+  requestTimeoutMs?: number;
   embedContent?: EmbedContent;
   sleep?: (milliseconds: number) => Promise<void>;
 }): EmbeddingProvider {
@@ -121,14 +122,25 @@ export function createGeminiEmbeddingProvider(options: {
         if (delayBeforeAttempt > 0) await wait(delayBeforeAttempt);
         let responseRetryDelayMs: number | undefined;
         const fetchWithRetryMetadata: typeof fetch = async (request, init) => {
-          const response = await fetch(request, init);
-          const retryAfterMs = response.headers.get("retry-after-ms");
-          const parsedRetryAfterMs = retryAfterMs === null ? undefined : Number(retryAfterMs);
-          responseRetryDelayMs =
-            Number.isFinite(parsedRetryAfterMs) && parsedRetryAfterMs! >= 0
-              ? parsedRetryAfterMs
-              : parseRetryAfter(response.headers.get("retry-after"));
-          return response;
+          const controller = new AbortController();
+          const timeout = options.requestTimeoutMs
+            ? setTimeout(() => controller.abort(), options.requestTimeoutMs)
+            : undefined;
+          const signal = init?.signal
+            ? AbortSignal.any([init.signal, controller.signal])
+            : controller.signal;
+          try {
+            const response = await fetch(request, { ...init, signal });
+            const retryAfterMs = response.headers.get("retry-after-ms");
+            const parsedRetryAfterMs = retryAfterMs === null ? undefined : Number(retryAfterMs);
+            responseRetryDelayMs =
+              Number.isFinite(parsedRetryAfterMs) && parsedRetryAfterMs! >= 0
+                ? parsedRetryAfterMs
+                : parseRetryAfter(response.headers.get("retry-after"));
+            return response;
+          } finally {
+            if (timeout) clearTimeout(timeout);
+          }
         };
 
         callCount += 1;

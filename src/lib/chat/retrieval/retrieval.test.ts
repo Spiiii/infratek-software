@@ -14,6 +14,7 @@ import { prepareRetrievalQuery, RetrievalQueryValidationError } from "./query.ts
 import { createQueryEmbeddingAdapter, QueryEmbeddingError } from "./query-embedding.ts";
 import { candidateIdentity, fuseAndSelectSources, fuseCandidates } from "./fusion.ts";
 import { FtsRetrievalRepository, VectorRetrievalRepository } from "./repository.ts";
+import { retrieve, type RetrievalDependencies } from "./retrieve.ts";
 import type { FtsCandidate, RetrievalStatus, VectorCandidate } from "./types.ts";
 
 function assertValidationCode(input: unknown, code: RetrievalQueryValidationError["code"]) {
@@ -486,4 +487,194 @@ test("concentration diagnostics do not impose a diversity cap or change ordering
     documentConcentration: 0.75,
   });
   assert.deepEqual(RETRIEVAL_THRESHOLD, { state: "UN-CALIBRATED" });
+});
+
+type RetrievalScenario = {
+  embeddingFailure?: ConstructorParameters<typeof QueryEmbeddingError>;
+  vectorFailure?: boolean;
+  ftsFailure?: boolean;
+  vectorCandidates?: VectorCandidate[];
+  ftsCandidates?: FtsCandidate[];
+  onEmbeddingInput?: (value: string) => void;
+  onFtsInput?: (value: string) => void;
+};
+
+function retrievalDependencies(scenario: RetrievalScenario = {}): RetrievalDependencies {
+  let calls = 0;
+  return {
+    queryEmbedding: {
+      get calls() {
+        return calls;
+      },
+      async embed(query) {
+        calls += 1;
+        scenario.onEmbeddingInput?.(query.value);
+        if (scenario.embeddingFailure) throw new QueryEmbeddingError(...scenario.embeddingFailure);
+        return Array(768).fill(0.01);
+      },
+    },
+    vectorRepository: {
+      async findTopCandidates() {
+        if (scenario.vectorFailure) throw new Error("database unavailable");
+        return { candidates: scenario.vectorCandidates ?? [], invalidRowCount: 0 };
+      },
+    },
+    ftsRepository: {
+      async findTopCandidates(query) {
+        scenario.onFtsInput?.(query.value);
+        if (scenario.ftsFailure) throw new Error("database unavailable");
+        return { candidates: scenario.ftsCandidates ?? [], invalidRowCount: 0 };
+      },
+    },
+  };
+}
+
+test("retrieval returns HYBRID candidates through shared RRF and Top 6", async () => {
+  const result = await retrieve(
+    "Camera AI",
+    retrievalDependencies({
+      vectorCandidates: [vectorCandidate("shared", 1), vectorCandidate("vector", 2)],
+      ftsCandidates: [ftsCandidate("shared", 2), ftsCandidate("fts", 1)],
+    }),
+    {},
+  );
+
+  assert.deepEqual(result.status, {
+    mode: "HYBRID",
+    candidateState: "HAS_CANDIDATES",
+    relevanceState: "UN_CALIBRATED",
+  });
+  assert.equal(result.diagnostics.vectorCandidateCount, 2);
+  assert.equal(result.diagnostics.ftsCandidateCount, 2);
+  assert.equal(result.diagnostics.fusedCandidateCount, 3);
+  assert.equal(result.diagnostics.queryEmbeddingCalls, 1);
+  assert.deepEqual(result.sources.map((source) => source.source.label), ["S1", "S2", "S3"]);
+  assert.equal(result.sources[0].diagnostics.rrfScore, 1 / 61 + 1 / 62);
+});
+
+test("embedding failure matrix degrades to FTS_ONLY without retry", async () => {
+  for (const failure of [
+    ["RATE_LIMIT", 429],
+    ["PROVIDER_5XX", 503],
+    ["TIMEOUT", undefined],
+    ["INVALID_RESPONSE", undefined],
+    ["WRONG_DIMENSION", undefined],
+  ] as const) {
+    const result = await retrieve(
+      "Camera AI",
+      retrievalDependencies({
+        embeddingFailure: [failure[0], failure[1]],
+        ftsCandidates: [ftsCandidate("fts", 1)],
+      }),
+      {},
+    );
+    assert.deepEqual(result.status, {
+      mode: "FTS_ONLY",
+      candidateState: "HAS_CANDIDATES",
+      relevanceState: "UN_CALIBRATED",
+    });
+    assert.equal(result.diagnostics.embedding.failure, failure[0]);
+    assert.equal(result.diagnostics.embedding.physicalCalls, 1);
+    assert.equal(result.diagnostics.vector.attempted, false);
+  }
+});
+
+test("database branch failures degrade independently", async () => {
+  const vectorFailed = await retrieve(
+    "Camera AI",
+    retrievalDependencies({ vectorFailure: true, ftsCandidates: [ftsCandidate("fts", 1)] }),
+    {},
+  );
+  assert.equal(vectorFailed.status.mode, "FTS_ONLY");
+  assert.equal(vectorFailed.diagnostics.vector.failure, "DATABASE");
+
+  const ftsFailed = await retrieve(
+    "Camera AI",
+    retrievalDependencies({ ftsFailure: true, vectorCandidates: [vectorCandidate("v", 1)] }),
+    {},
+  );
+  assert.equal(ftsFailed.status.mode, "VECTOR_ONLY");
+  assert.equal(ftsFailed.diagnostics.fts.failure, "DATABASE");
+
+  const bothFailed = await retrieve(
+    "Camera AI",
+    retrievalDependencies({ vectorFailure: true, ftsFailure: true }),
+    {},
+  );
+  assert.deepEqual(bothFailed.status, {
+    mode: "UNAVAILABLE",
+    candidateState: "UNKNOWN",
+    relevanceState: "UNAVAILABLE",
+  });
+});
+
+test("zero-candidate semantics distinguish hybrid evidence from degraded uncertainty", async () => {
+  const hybrid = await retrieve("Camera AI", retrievalDependencies(), {});
+  assert.deepEqual(hybrid.status, {
+    mode: "HYBRID",
+    candidateState: "NO_CANDIDATES",
+    relevanceState: "NO_CONTEXT",
+  });
+
+  const ftsOnly = await retrieve(
+    "Camera AI",
+    retrievalDependencies({ embeddingFailure: ["PROVIDER_UNAVAILABLE"] }),
+    {},
+  );
+  assert.deepEqual(ftsOnly.status, {
+    mode: "FTS_ONLY",
+    candidateState: "NO_CANDIDATES",
+    relevanceState: "UN_CALIBRATED",
+  });
+
+  const vectorOnly = await retrieve(
+    "Camera AI",
+    retrievalDependencies({ ftsFailure: true }),
+    {},
+  );
+  assert.deepEqual(vectorOnly.status, {
+    mode: "VECTOR_ONLY",
+    candidateState: "NO_CANDIDATES",
+    relevanceState: "UN_CALIBRATED",
+  });
+});
+
+test("retrieval sends only the prepared redacted query downstream", async () => {
+  const seenEmbedding: string[] = [];
+  const seenFts: string[] = [];
+  const result = await retrieve(
+    "  Email a@b.vn hoặc gọi 090 123 4567   về Camera AI ",
+    retrievalDependencies({
+      onEmbeddingInput: (value) => seenEmbedding.push(value),
+      onFtsInput: (value) => seenFts.push(value),
+      vectorCandidates: Array.from({ length: 7 }, (_, index) =>
+        vectorCandidate(`v${index}`, index + 1),
+      ),
+    }),
+    {},
+  );
+
+  assert.deepEqual(seenEmbedding, ["Email [EMAIL] hoặc gọi [SDT] về Camera AI"]);
+  assert.deepEqual(seenFts, seenEmbedding);
+  assert.equal(result.sources.length, 6);
+  assert.deepEqual(result.sources.map((source) => source.source.label), [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5",
+    "S6",
+  ]);
+  assert.equal(result.diagnostics.chatModelCalls, 0);
+  assert.equal(result.diagnostics.queryRewriteCalls, 0);
+});
+
+test("interactive adapter enforces an explicit timeout with one physical call", async () => {
+  const provider = fakeProvider(() => new Promise<number[]>(() => undefined));
+  const adapter = createQueryEmbeddingAdapter({ provider, dimension: 768, timeoutMs: 5 });
+  await assert.rejects(
+    adapter.embed(prepareRetrievalQuery("Camera AI", {})),
+    (error) => error instanceof QueryEmbeddingError && error.kind === "TIMEOUT",
+  );
+  assert.equal(provider.calls, 1);
 });

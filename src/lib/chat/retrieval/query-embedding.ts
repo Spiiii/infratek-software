@@ -12,6 +12,7 @@ export type QueryEmbeddingFailure =
   | "RATE_LIMIT"
   | "PROVIDER_5XX"
   | "PROVIDER_UNAVAILABLE"
+  | "TIMEOUT"
   | "INVALID_RESPONSE"
   | "WRONG_DIMENSION";
 
@@ -49,6 +50,7 @@ function mapProviderError(error: EmbeddingProviderError): QueryEmbeddingError {
 export function createQueryEmbeddingAdapter(options: {
   provider: EmbeddingProvider;
   dimension: number;
+  timeoutMs?: number;
 }) {
   return {
     get calls() {
@@ -56,11 +58,27 @@ export function createQueryEmbeddingAdapter(options: {
     },
     async embed(query: PreparedRetrievalQuery): Promise<number[]> {
       let vector: number[];
+      let timeout: ReturnType<typeof setTimeout> | undefined;
       try {
-        vector = await options.provider.embed(query.value);
+        vector = await Promise.race([
+          options.provider.embed(query.value),
+          ...(options.timeoutMs
+            ? [
+                new Promise<never>((_resolve, reject) => {
+                  timeout = setTimeout(
+                    () => reject(new QueryEmbeddingError("TIMEOUT")),
+                    options.timeoutMs,
+                  );
+                }),
+              ]
+            : []),
+        ]);
       } catch (error) {
+        if (error instanceof QueryEmbeddingError) throw error;
         if (error instanceof EmbeddingProviderError) throw mapProviderError(error);
         throw new QueryEmbeddingError("PROVIDER_UNAVAILABLE");
+      } finally {
+        if (timeout) clearTimeout(timeout);
       }
 
       if (!Array.isArray(vector)) throw new QueryEmbeddingError("INVALID_RESPONSE");
@@ -86,9 +104,11 @@ export function createLiveQueryEmbeddingAdapter(
     maxRetries: INTERACTIVE_EMBEDDING_CONFIG.maxRetries,
     retryBaseMs: 1,
     retryMaxMs: 1,
+    requestTimeoutMs: config.limits.embeddingTimeoutMs,
   });
   return createQueryEmbeddingAdapter({
     provider,
     dimension: config.model.embeddingDimension,
+    timeoutMs: config.limits.embeddingTimeoutMs,
   });
 }

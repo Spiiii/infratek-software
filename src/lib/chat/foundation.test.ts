@@ -18,6 +18,11 @@ test("build-safe defaults pin the approved P5.1 models and uncalibrated threshol
   assert.equal(config.model.embeddingDimension, 768);
   assert.equal(config.versioning.threshold, "UN-CALIBRATED");
   assert.equal(config.limits.outputMaxTokens, 256);
+  assert.equal(config.limits.embeddingTimeoutMs, 15_000);
+  assert.equal(
+    readChatBuildSafeConfig({ EMBED_INTERACTIVE_TIMEOUT_MS: "25000" }).limits.embeddingTimeoutMs,
+    25_000,
+  );
 });
 
 test("redacts email addresses", () => {

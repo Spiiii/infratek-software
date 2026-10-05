@@ -8,9 +8,14 @@ export type RelevanceState = "UN_CALIBRATED" | "NO_CONTEXT" | "ACCEPTED" | "UNAV
 export type RetrievalStatus =
   | { mode: "UNAVAILABLE"; candidateState: "UNKNOWN"; relevanceState: "UNAVAILABLE" }
   | {
-      mode: AvailableRetrievalMode;
+      mode: "HYBRID";
       candidateState: "NO_CANDIDATES";
       relevanceState: "NO_CONTEXT";
+    }
+  | {
+      mode: "VECTOR_ONLY" | "FTS_ONLY";
+      candidateState: "NO_CANDIDATES";
+      relevanceState: "UN_CALIBRATED";
     }
   | {
       mode: AvailableRetrievalMode;
@@ -70,7 +75,17 @@ export type SelectedSource = {
   diagnostics: CandidateDiagnostics;
 };
 
+export type RetrievalFailureCategory =
+  | "RATE_LIMIT"
+  | "PROVIDER_5XX"
+  | "PROVIDER_UNAVAILABLE"
+  | "TIMEOUT"
+  | "INVALID_RESPONSE"
+  | "WRONG_DIMENSION"
+  | "DATABASE";
+
 export type RetrievalDiagnostics = {
+  mode: RetrievalMode;
   vectorCandidateCount: number;
   ftsCandidateCount: number;
   fusedCandidateCount: number;
@@ -79,6 +94,31 @@ export type RetrievalDiagnostics = {
   queryRewriteCalls: 0;
   chatModelCalls: 0;
   failures: Array<"EMBEDDING" | "VECTOR" | "FTS" | "DATABASE">;
+  embedding: {
+    attempted: true;
+    physicalCalls: 0 | 1;
+    model: string;
+    dimension: number;
+    failure?: RetrievalFailureCategory;
+  };
+  vector: {
+    attempted: boolean;
+    succeeded: boolean;
+    candidateCount: number;
+    failure?: RetrievalFailureCategory;
+  };
+  fts: {
+    attempted: true;
+    succeeded: boolean;
+    candidateCount: number;
+    failure?: RetrievalFailureCategory;
+  };
+  fusion: {
+    fusedCandidateCount: number;
+    selectedCount: number;
+    distinctDocumentCount: number;
+    maxChunksFromSingleDocument: number;
+  };
 };
 
 export type RetrievalResult = {
