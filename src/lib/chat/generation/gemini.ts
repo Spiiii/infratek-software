@@ -82,11 +82,9 @@ export function createGeminiChatAdapter(options: {
   };
 }
 
-export function createLiveGeminiChatAdapter(options: {
-  timeoutMs: number;
-  environment?: Record<string, string | undefined>;
-}): ChatGenerationAdapter {
-  const environment = options.environment ?? process.env;
+export function createLiveGeminiChatAdapter(
+  environment: Record<string, string | undefined> = process.env,
+): ChatGenerationAdapter {
   const config = readChatBuildSafeConfig(environment);
   const secrets = readChatRuntimeSecrets(environment);
   const clientPromise = import("@google/genai").then(
@@ -96,7 +94,7 @@ export function createLiveGeminiChatAdapter(options: {
   return createGeminiChatAdapter({
     model: config.model.chat,
     maxOutputTokens: config.limits.outputMaxTokens,
-    timeoutMs: options.timeoutMs,
+    timeoutMs: config.limits.generationTimeoutMs,
     generateContent: async (parameters) => (await clientPromise).models.generateContent(parameters),
   });
 }

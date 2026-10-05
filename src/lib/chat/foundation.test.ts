@@ -19,9 +19,14 @@ test("build-safe defaults pin the approved P5.1 models and uncalibrated threshol
   assert.equal(config.versioning.threshold, "UN-CALIBRATED");
   assert.equal(config.limits.outputMaxTokens, 256);
   assert.equal(config.limits.embeddingTimeoutMs, 15_000);
+  assert.equal(config.limits.generationTimeoutMs, 10_000);
   assert.equal(
     readChatBuildSafeConfig({ EMBED_INTERACTIVE_TIMEOUT_MS: "25000" }).limits.embeddingTimeoutMs,
     25_000,
+  );
+  assert.equal(
+    readChatBuildSafeConfig({ CHAT_GENERATION_TIMEOUT_MS: "12000" }).limits.generationTimeoutMs,
+    12_000,
   );
 });
 
