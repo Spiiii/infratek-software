@@ -9,6 +9,10 @@ import {
 import { buildGroundingContext, type ContextBuildFailure } from "../grounding/context.ts";
 import { buildChatSystemPrompt } from "../prompt.ts";
 import type { PreparedRetrievalQuery } from "../retrieval/query.ts";
+import {
+  validateProtectedOutput,
+  type UnsupportedOutputCategory,
+} from "../safety/output.ts";
 
 export type GroundedAnswerFallbackReason =
   | DependencyFallbackReason
@@ -22,6 +26,13 @@ export type GroundedAnswerResult =
   | { state: "NO_ANSWER"; policyVersion: string }
   | { state: "NO_CONTEXT"; policyVersion: string }
   | { state: "CALIBRATION_REQUIRED"; policyVersion: string }
+  | {
+      state: "SAFE_FALLBACK";
+      reason: "UNSUPPORTED_OUTPUT";
+      unsupported: true;
+      categories: UnsupportedOutputCategory[];
+      policyVersion: string;
+    }
   | {
       state: "DEPENDENCY_FALLBACK";
       reason: GroundedAnswerFallbackReason;
@@ -91,6 +102,20 @@ export async function generateGroundedAnswer(options: {
       state: "DEPENDENCY_FALLBACK",
       reason: "INVALID_GROUNDED_OUTPUT",
       groundingReason: validation.reason,
+      policyVersion: decision.policyVersion,
+    };
+  }
+
+  const outputSafety = validateProtectedOutput(
+    generation.text,
+    context.sources.map(({ source }) => source.content).join("\n"),
+  );
+  if (outputSafety.state === "SAFE_FALLBACK") {
+    return {
+      state: "SAFE_FALLBACK",
+      reason: "UNSUPPORTED_OUTPUT",
+      unsupported: true,
+      categories: outputSafety.categories,
       policyVersion: decision.policyVersion,
     };
   }

@@ -203,3 +203,23 @@ test("invalid context fails before generation", async () => {
   });
   assert.equal(generator.calls, 0);
 });
+
+test("unsupported protected output rejects the entire answer without retry or partial exposure", async () => {
+  const raw = "Thời gian triển khai là 14 ngày [S1].";
+  const generator = adapter(async () => response(raw));
+  const result = await generateGroundedAnswer({
+    decision: answerDecision([source("S1", "Thời gian triển khai là 30 ngày.")]),
+    question,
+    generator,
+  });
+  assert.deepEqual(result, {
+    state: "SAFE_FALLBACK",
+    reason: "UNSUPPORTED_OUTPUT",
+    unsupported: true,
+    categories: ["UNSUPPORTED_NUMBER", "UNSUPPORTED_RISKY_CLAIM"],
+    policyVersion: "test-calibrated-v1",
+  });
+  assert.equal(generator.calls, 1);
+  assert.equal(JSON.stringify(result).includes(raw), false);
+  assert.equal("answer" in result, false);
+});
