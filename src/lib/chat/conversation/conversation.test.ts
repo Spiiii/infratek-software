@@ -93,6 +93,30 @@ test("conversation persistence errors are sanitized", async () => {
   });
 });
 
+test("active conversation lookup is session-owned, active, unexpired, and deterministic", async () => {
+  let sql = "";
+  let parameters: unknown[] = [];
+  const now = new Date(Date.UTC(2026, 9, 6));
+  const repository = new ChatConversationRepository({
+    query: async (statement, values) => {
+      sql = statement;
+      parameters = values;
+      return { rows: [{ id: "conversation-active" }] };
+    },
+  });
+  assert.equal(await repository.findActiveBySession("server-session", now), "conversation-active");
+  assert.deepEqual(parameters, ["server-session", now]);
+  assert.match(sql, /session_id = \$1/);
+  assert.match(sql, /status = 'active'/);
+  assert.match(sql, /expires_at > \$2/);
+  assert.match(sql, /ORDER BY created_at DESC, id DESC/);
+  assert.equal(
+    await new ChatConversationRepository({ query: async () => ({ rows: [] }) })
+      .findActiveBySession("server-session", now),
+    undefined,
+  );
+});
+
 test("multi-turn preparation keeps current question primary and uses no more than two completed turns", () => {
   const history = [
     message("user", "u1", 0), message("assistant", "a1", 1),

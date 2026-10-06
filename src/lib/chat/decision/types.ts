@@ -35,7 +35,8 @@ export type PublicChatStatus =
   | "DEPENDENCY_FALLBACK"
   | "INVALID_REQUEST"
   | "RATE_LIMITED"
-  | "VERIFICATION_REQUIRED";
+  | "VERIFICATION_REQUIRED"
+  | "SAFE_FALLBACK";
 
 export interface RelevanceDecisionPolicy {
   readonly version: string;

@@ -36,6 +36,21 @@ export class ChatConversationRepository {
     this.executor = executor;
   }
 
+  async findActiveBySession(sessionId: string, now: Date): Promise<string | undefined> {
+    const result = await this.executor.query(
+      `SELECT id
+       FROM chat_conversations
+       WHERE session_id = $1
+         AND status = 'active'
+         AND expires_at > $2
+       ORDER BY created_at DESC, id DESC
+       LIMIT 1`,
+      [sessionId, now],
+    );
+    const id = result.rows[0]?.id;
+    return typeof id === "string" ? id : undefined;
+  }
+
   async create(input: {
     sessionId: string;
     messages: ConversationMessage[];

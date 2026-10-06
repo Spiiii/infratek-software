@@ -4,6 +4,7 @@ import type { CitedPublicSource } from "../grounding/citations.ts";
 import type { UnsupportedOutputCategory } from "../safety/output.ts";
 import { ChatConversationRepository } from "./repository.ts";
 import type {
+  ActiveConversationResult,
   ConversationFlags,
   ConversationHistoryResult,
   ConversationMessage,
@@ -28,6 +29,17 @@ export function createConversationService(
   const config = readChatBuildSafeConfig(environment);
 
   return {
+    async findActive(sessionId: string, now = new Date()): Promise<ActiveConversationResult> {
+      try {
+        const conversationId = await repository.findActiveBySession(sessionId, now);
+        return conversationId
+          ? { state: "FOUND", conversationId }
+          : { state: "NOT_FOUND" };
+      } catch {
+        return { state: "FAILURE", reason: "PERSISTENCE_UNAVAILABLE" };
+      }
+    },
+
     async create(input: {
       sessionId: string;
       userMessage: string;

@@ -20,3 +20,8 @@ export type ConversationPersistenceResult =
 export type ConversationHistoryResult =
   | { state: "READY"; messages: ConversationMessage[] }
   | { state: "FAILURE"; reason: "PERSISTENCE_UNAVAILABLE" };
+
+export type ActiveConversationResult =
+  | { state: "FOUND"; conversationId: string }
+  | { state: "NOT_FOUND" }
+  | { state: "FAILURE"; reason: "PERSISTENCE_UNAVAILABLE" };
