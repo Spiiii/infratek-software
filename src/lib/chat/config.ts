@@ -20,6 +20,8 @@ const buildSafeSchema = z.object({
   CHAT_INPUT_MAX_LENGTH: positiveInteger.default(500),
   EMBED_INTERACTIVE_TIMEOUT_MS: positiveInteger.default(15_000),
   CHAT_GENERATION_TIMEOUT_MS: positiveInteger.default(10_000),
+  CHAT_SESSION_TTL_SECONDS: z.coerce.number().pipe(z.literal(604_800)).default(604_800),
+  TURNSTILE_VERIFY_TIMEOUT_MS: z.coerce.number().int().positive().default(5_000),
   CHAT_CONTEXT_MESSAGES: positiveInteger.default(6),
   CHAT_OUTPUT_MAX_TOKENS: positiveInteger.default(256),
   CHAT_CONVERSATION_RETENTION_DAYS: positiveInteger.default(30),
@@ -29,6 +31,14 @@ const buildSafeSchema = z.object({
 
 const runtimeSecretsSchema = z.object({
   GOOGLE_GENERATIVE_AI_API_KEY: z.string().trim().min(1),
+});
+
+const securitySecretsSchema = z.object({
+  CHAT_SESSION_SIGNING_SECRET: z.string().trim().min(1),
+  CHAT_IP_HMAC_SECRET: z.string().trim().min(1),
+  TURNSTILE_SECRET_KEY: z.string().trim().min(1),
+  UPSTASH_REDIS_REST_URL: z.string().url(),
+  UPSTASH_REDIS_REST_TOKEN: z.string().trim().min(1),
 });
 
 export type ChatBuildSafeConfig = {
@@ -50,11 +60,20 @@ export type ChatBuildSafeConfig = {
     generationTimeoutMs: number;
     contextMessages: number;
     outputMaxTokens: number;
+    sessionTtlSeconds: number;
+    turnstileTimeoutMs: number;
   };
   retentionDays: { conversations: number; unanswered: number; feedback: number };
 };
 
 export type ChatRuntimeSecrets = { googleGenerativeAiApiKey: string };
+export type ChatSecuritySecrets = {
+  sessionSigningSecret: string;
+  ipHmacSecret: string;
+  turnstileSecretKey: string;
+  upstashUrl: string;
+  upstashToken: string;
+};
 
 export function readChatBuildSafeConfig(
   environment: Record<string, string | undefined> = process.env,
@@ -84,12 +103,27 @@ export function readChatBuildSafeConfig(
       generationTimeoutMs: value.CHAT_GENERATION_TIMEOUT_MS,
       contextMessages: value.CHAT_CONTEXT_MESSAGES,
       outputMaxTokens: value.CHAT_OUTPUT_MAX_TOKENS,
+      sessionTtlSeconds: value.CHAT_SESSION_TTL_SECONDS,
+      turnstileTimeoutMs: value.TURNSTILE_VERIFY_TIMEOUT_MS,
     },
     retentionDays: {
       conversations: value.CHAT_CONVERSATION_RETENTION_DAYS,
       unanswered: value.CHAT_UNANSWERED_RETENTION_DAYS,
       feedback: value.CHAT_FEEDBACK_RETENTION_DAYS,
     },
+  };
+}
+
+export function readChatSecuritySecrets(
+  environment: Record<string, string | undefined> = process.env,
+): ChatSecuritySecrets {
+  const value = securitySecretsSchema.parse(environment);
+  return {
+    sessionSigningSecret: value.CHAT_SESSION_SIGNING_SECRET,
+    ipHmacSecret: value.CHAT_IP_HMAC_SECRET,
+    turnstileSecretKey: value.TURNSTILE_SECRET_KEY,
+    upstashUrl: value.UPSTASH_REDIS_REST_URL,
+    upstashToken: value.UPSTASH_REDIS_REST_TOKEN,
   };
 }
 

@@ -27,7 +27,8 @@
     "verify:phase4:packages": "node scripts/verify-phase4-packages.ts",
     "reindex:chat": "tsx scripts/reindex-chat.ts",
     "verify:rag:drafts": "tsx scripts/verify-rag-draft-isolation.ts",
-    "test:chat": "node --test --experimental-strip-types src/lib/chat/foundation.test.ts src/lib/chat/ingestion/ingestion.test.ts src/lib/chat/retrieval/retrieval.test.ts src/lib/chat/decision/policy.test.ts src/lib/chat/grounding/grounding.test.ts src/lib/chat/generation/generation.test.ts",
+    "test:chat": "node --test --experimental-strip-types src/lib/chat/foundation.test.ts src/lib/chat/ingestion/ingestion.test.ts src/lib/chat/retrieval/retrieval.test.ts src/lib/chat/decision/policy.test.ts src/lib/chat/grounding/grounding.test.ts src/lib/chat/generation/generation.test.ts src/lib/chat/security/security.test.ts",
+    "test:chat:security": "node --test --experimental-strip-types src/lib/chat/security/security.test.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint ."
   },
@@ -46,6 +47,7 @@
     "@radix-ui/react-slot": "^1.1.1",
     "@radix-ui/react-tooltip": "^1.1.6",
     "@tailwindcss/typography": "^0.5.20",
+    "@upstash/redis": "^1.39.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "framer-motion": "^11.15.0",
