@@ -6,7 +6,7 @@ import { createLiveGeminiChatAdapter } from "../generation/gemini.ts";
 import { createLiveQueryEmbeddingAdapter } from "../retrieval/query-embedding.ts";
 import { FtsRetrievalRepository, VectorRetrievalRepository } from "../retrieval/repository.ts";
 import { retrieve } from "../retrieval/retrieve.ts";
-import { deploymentGatedClientIpResolver } from "../security/ip.ts";
+import { vercelClientIpResolver } from "../security/ip.ts";
 import { createConfiguredUpstashRateLimiter } from "../security/rate-limit.ts";
 import { createChatSecurityService } from "../security/service.ts";
 import { createTurnstileVerifier } from "../security/turnstile.ts";
@@ -49,7 +49,7 @@ export function createChatRuntimeDependencies(
   const ftsRepository = new FtsRetrievalRepository(executor);
 
   return {
-    clientIpResolver: deploymentGatedClientIpResolver,
+    clientIpResolver: vercelClientIpResolver,
     security: createChatSecurityService({
       sessionSigningSecret: secrets.sessionSigningSecret,
       ipHmacSecret: secrets.ipHmacSecret,

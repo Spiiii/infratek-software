@@ -3,7 +3,12 @@ import test from "node:test";
 
 import { readChatBuildSafeConfig, readChatSecuritySecrets } from "../config.ts";
 import { CHAT_CONTACT, mapRateLimitFallback } from "./contact.ts";
-import { deploymentGatedClientIpResolver, deriveIpLimiterKey, normalizeTrustedClientIp } from "./ip.ts";
+import {
+  deploymentGatedClientIpResolver,
+  deriveIpLimiterKey,
+  normalizeTrustedClientIp,
+  vercelClientIpResolver,
+} from "./ip.ts";
 import { CHAT_RATE_LIMIT_SCRIPT, createUpstashRateLimiter } from "./rate-limit.ts";
 import { createChatSecurityService } from "./service.ts";
 import {
@@ -104,6 +109,37 @@ test("production IP resolver stays deployment-gated and ignores arbitrary forwar
   });
   assert.deepEqual(deploymentGatedClientIpResolver.resolve(request), {
     state: "DEPLOYMENT_VERIFICATION_REQUIRED",
+  });
+});
+
+test("verified Vercel resolver accepts exactly one valid IPv4 or IPv6", () => {
+  const resolve = (value: string) => vercelClientIpResolver.resolve(new Request("https://example.com", {
+    headers: { "x-vercel-forwarded-for": value },
+  }));
+  assert.deepEqual(resolve("203.0.113.7"), { state: "RESOLVED", normalizedIp: "203.0.113.7" });
+  assert.deepEqual(resolve(" 2001:DB8::1 "), { state: "RESOLVED", normalizedIp: "2001:db8::1" });
+});
+
+test("verified Vercel resolver rejects missing, empty, malformed, and ambiguous values", () => {
+  const values: Array<string | undefined> = [undefined, "", "not-an-ip", "203.0.113.7, 198.51.100.8", "203.0.113.7,invalid"];
+  for (const value of values) {
+    const headers = value === undefined ? undefined : { "x-vercel-forwarded-for": value };
+    assert.deepEqual(
+      vercelClientIpResolver.resolve(new Request("https://example.com", { headers })),
+      { state: "DEPLOYMENT_VERIFICATION_REQUIRED" },
+    );
+  }
+});
+
+test("verified Vercel resolver ignores spoofable fallback headers", () => {
+  const request = new Request("https://example.com", { headers: {
+    "x-vercel-forwarded-for": "203.0.113.7",
+    "x-forwarded-for": "192.0.2.10",
+    "x-real-ip": "198.51.100.20",
+  } });
+  assert.deepEqual(vercelClientIpResolver.resolve(request), {
+    state: "RESOLVED",
+    normalizedIp: "203.0.113.7",
   });
 });
 
