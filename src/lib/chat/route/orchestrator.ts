@@ -4,6 +4,7 @@ import type {
   ConversationHistoryResult,
   ConversationPersistenceResult,
 } from "../conversation/types.ts";
+import type { ConversationOutcome } from "../conversation/types.ts";
 import type { RelevanceDecisionPolicy } from "../decision/types.ts";
 import type { ChatGenerationAdapter } from "../generation/types.ts";
 import type { CitedPublicSource } from "../grounding/citations.ts";
@@ -27,6 +28,7 @@ import {
 type PersistInput = {
   userMessage: string;
   assistantMessage?: string;
+  assistantOutcome?: ConversationOutcome;
   sources?: CitedPublicSource[];
   unsupportedCategories?: readonly UnsupportedOutputCategory[];
 };
@@ -229,6 +231,7 @@ export function createChatPostHandler(dependencies: ChatRouteDependencies) {
       const saved = await persist(dependencies, active, security.sessionId, {
         userMessage: parsed.data.question,
         assistantMessage: answer.answer,
+        assistantOutcome: "ANSWER",
         sources: answer.sources,
       });
       if (saved.state !== "SAVED") return dependencyFallback(cookie);
@@ -261,6 +264,7 @@ export function createChatPostHandler(dependencies: ChatRouteDependencies) {
     const saved = await persist(dependencies, active, security.sessionId, {
       userMessage: parsed.data.question,
       assistantMessage: NO_CONTEXT_FALLBACK,
+      assistantOutcome: "NO_CONTEXT",
     });
     if (saved.state !== "SAVED") return dependencyFallback(cookie);
     await dependencies.unanswered.record({ trigger, question: parsed.data.question });

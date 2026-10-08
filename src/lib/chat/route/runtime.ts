@@ -16,7 +16,7 @@ import type { ChatRouteDependencies } from "./orchestrator.ts";
 
 type QueryResult = { rows: Array<Record<string, unknown>>; rowCount?: number | null };
 
-function createLazyPayloadExecutor() {
+export function createLazyPayloadExecutor() {
   let payloadPromise: Promise<Awaited<ReturnType<typeof import("payload")["getPayload"]>>> | undefined;
 
   const payload = () => {

@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { buildPublicChatRequest, canSubmitChat, mapPublicChatResponse, shouldAutomaticallyVerify, type ChatUiOutcome } from "@/lib/chat/ui";
 import { ChatComposer } from "./chat-composer";
 import { ChatMessage, type ChatMessageModel } from "./chat-message";
+import { ChatLeadForm } from "./chat-lead-form";
 import { TurnstileWidget } from "./turnstile-widget";
 
 const GREETING: ChatMessageModel = {
@@ -27,6 +28,7 @@ export function ChatShell({ turnstileSiteKey }: { turnstileSiteKey: string }) {
   const [automaticRetries, setAutomaticRetries] = useState(0);
   const [widgetKey, setWidgetKey] = useState(0);
   const [rateLimited, setRateLimited] = useState(false);
+  const [leadOpen, setLeadOpen] = useState(false);
   const abortRef = useRef<AbortController | undefined>(undefined);
   const rateLimitTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const mountedRef = useRef(true);
@@ -130,6 +132,8 @@ export function ChatShell({ turnstileSiteKey }: { turnstileSiteKey: string }) {
   };
 
   const busy = phase === "SUBMITTING";
+  const latestEligibleFeedbackId = [...messages].reverse().find((message) => message.outcome?.kind === "ANSWER" && message.outcome.conversationId)?.id;
+  const latestConversationId = [...messages].reverse().find((message) => message.outcome?.conversationId)?.outcome?.conversationId;
 
   return (
     <Card className="mx-auto flex min-h-[620px] w-full max-w-4xl flex-col overflow-hidden shadow-elevated">
@@ -141,13 +145,18 @@ export function ChatShell({ turnstileSiteKey }: { turnstileSiteKey: string }) {
             <p className="text-xs text-text-secondary">Bản beta · Nội dung có nguồn tham khảo</p>
           </div>
         </div>
-        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700"><ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" /> An toàn</span>
+        <div className="flex shrink-0 items-center gap-2">
+          {latestConversationId ? <Button type="button" size="sm" variant="ghost" onClick={() => setLeadOpen(true)}>Đăng ký tư vấn</Button> : <Button asChild size="sm" variant="ghost"><Link href="/contact">Liên hệ</Link></Button>}
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700"><ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" /> An toàn</span>
+        </div>
       </header>
 
       <div className="flex-1 space-y-5 overflow-y-auto bg-surface-light/60 p-4 sm:p-6" aria-live="polite" aria-busy={busy} aria-label="Nội dung trò chuyện">
-        {messages.map((message) => <ChatMessage key={message.id} message={message} />)}
+        {messages.map((message) => <ChatMessage key={message.id} message={message} feedbackEligible={message.id === latestEligibleFeedbackId} />)}
         {busy && <p className="text-sm text-text-secondary" role="status">Trợ lý đang xử lý câu hỏi...</p>}
       </div>
+
+      {leadOpen && latestConversationId && <ChatLeadForm conversationId={latestConversationId} onClose={() => setLeadOpen(false)} />}
 
       {(phase === "VERIFYING" || phase === "VERIFICATION_FAILED") && (
         <div className="border-t border-border bg-blue-50/70 px-4 py-4 sm:px-6">

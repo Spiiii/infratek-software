@@ -5,6 +5,7 @@ import type { ChatUiOutcome } from "@/lib/chat/ui";
 import { splitGroundedCitations } from "@/lib/chat/ui";
 import { cn } from "@/lib/utils";
 import { ChatSources } from "./chat-sources";
+import { ChatFeedback } from "./chat-feedback";
 
 export type ChatMessageModel = {
   id: string;
@@ -13,7 +14,7 @@ export type ChatMessageModel = {
   outcome?: ChatUiOutcome;
 };
 
-export function ChatMessage({ message }: { message: ChatMessageModel }) {
+export function ChatMessage({ message, feedbackEligible = false }: { message: ChatMessageModel; feedbackEligible?: boolean }) {
   const assistant = message.role === "assistant";
   const parts = assistant && message.outcome?.kind === "ANSWER"
     ? splitGroundedCitations(message.text, message.outcome.sources)
@@ -43,6 +44,9 @@ export function ChatMessage({ message }: { message: ChatMessageModel }) {
           ) : <span key={index}>{part.value}</span>)}
         </p>
         {assistant && message.outcome && <ChatSources sources={message.outcome.sources} />}
+        {assistant && feedbackEligible && message.outcome?.kind === "ANSWER" && message.outcome.conversationId && (
+          <ChatFeedback conversationId={message.outcome.conversationId} />
+        )}
         {assistant && message.outcome?.showContact && (
           <Link href="/contact" className="mt-3 inline-flex rounded-md text-sm font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
             Liên hệ đội ngũ Infratek

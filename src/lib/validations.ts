@@ -27,3 +27,18 @@ export const contactFormSchema = z.object({
 });
 
 export type ContactFormValues = z.infer<typeof contactFormSchema>;
+
+export const chatLeadSchema = z.object({
+  name: z.string().trim().min(2).max(100),
+  email: z.string().trim().email().max(254).optional().or(z.literal("")),
+  phone: z.string().trim().min(8).max(20).regex(/^[0-9+\-\s()]+$/).optional().or(z.literal("")),
+  company: z.string().trim().min(2).max(100),
+  message: z.string().trim().max(2000).optional().or(z.literal("")),
+  conversationId: z.string().uuid().optional(),
+  website: z.string().max(200).optional(),
+}).strict().refine((value) => Boolean(value.email || value.phone), {
+  message: "Cần cung cấp email hoặc số điện thoại",
+  path: ["email"],
+});
+
+export type ChatLeadValues = z.infer<typeof chatLeadSchema>;

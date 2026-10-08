@@ -13,11 +13,12 @@ function isMessage(value: unknown): value is ConversationMessage {
     (item.role === "user" || item.role === "assistant") &&
     typeof item.content === "string" &&
     typeof item.createdAt === "string" &&
+    (item.outcome === undefined || item.outcome === "ANSWER" || item.outcome === "NO_CONTEXT") &&
     !Number.isNaN(Date.parse(item.createdAt))
   );
 }
 
-function parseMessages(value: unknown): ConversationMessage[] {
+export function parseConversationMessages(value: unknown): ConversationMessage[] {
   let parsed = value;
   if (typeof value === "string") {
     try {
@@ -116,7 +117,7 @@ export class ChatConversationRepository {
        LIMIT 1`,
       [conversationId],
     );
-    const messages = parseMessages(result.rows[0]?.messages_redacted);
+    const messages = parseConversationMessages(result.rows[0]?.messages_redacted);
     return messages.slice(-Math.min(6, Math.max(0, maximumMessages)));
   }
 }

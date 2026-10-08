@@ -1,11 +1,13 @@
 import type { UnsupportedOutputCategory } from "../safety/output.ts";
 
 export type ConversationRole = "user" | "assistant";
+export type ConversationOutcome = "ANSWER" | "NO_CONTEXT";
 
 export type ConversationMessage = {
   role: ConversationRole;
   content: string;
   createdAt: string;
+  outcome?: ConversationOutcome;
 };
 
 export type ConversationFlags = {

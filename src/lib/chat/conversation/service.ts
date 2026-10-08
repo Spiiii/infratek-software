@@ -8,14 +8,20 @@ import type {
   ConversationFlags,
   ConversationHistoryResult,
   ConversationMessage,
+  ConversationOutcome,
   ConversationPersistenceResult,
   ConversationRole,
 } from "./types.ts";
 
-function safeMessage(role: ConversationRole, rawContent: string, createdAt: Date): ConversationMessage {
+function safeMessage(
+  role: ConversationRole,
+  rawContent: string,
+  createdAt: Date,
+  outcome?: ConversationOutcome,
+): ConversationMessage {
   const redacted = redactPii(rawContent);
   if (!redacted.safe) throw new Error("Unsafe PII remained after redaction");
-  return { role, content: redacted.value, createdAt: createdAt.toISOString() };
+  return { role, content: redacted.value, createdAt: createdAt.toISOString(), ...(outcome ? { outcome } : {}) };
 }
 
 function flags(categories: readonly UnsupportedOutputCategory[]): ConversationFlags {
@@ -46,6 +52,7 @@ export function createConversationService(
       sessionId: string;
       userMessage: string;
       assistantMessage?: string;
+      assistantOutcome?: ConversationOutcome;
       sources?: CitedPublicSource[];
       unsupportedCategories?: readonly UnsupportedOutputCategory[];
       now?: Date;
@@ -55,7 +62,7 @@ export function createConversationService(
       try {
         const messages = [safeMessage("user", input.userMessage, now)];
         if (input.assistantMessage !== undefined && unsupported.length === 0) {
-          messages.push(safeMessage("assistant", input.assistantMessage, now));
+          messages.push(safeMessage("assistant", input.assistantMessage, now, input.assistantOutcome));
         }
         const conversationId = await repository.create({
           sessionId: input.sessionId,
@@ -77,6 +84,7 @@ export function createConversationService(
       conversationId: string;
       userMessage: string;
       assistantMessage?: string;
+      assistantOutcome?: ConversationOutcome;
       sources?: CitedPublicSource[];
       unsupportedCategories?: readonly UnsupportedOutputCategory[];
       now?: Date;
@@ -86,7 +94,7 @@ export function createConversationService(
       try {
         const messages = [safeMessage("user", input.userMessage, now)];
         if (input.assistantMessage !== undefined && unsupported.length === 0) {
-          messages.push(safeMessage("assistant", input.assistantMessage, now));
+          messages.push(safeMessage("assistant", input.assistantMessage, now, input.assistantOutcome));
         }
         await repository.append({
           conversationId: input.conversationId,
