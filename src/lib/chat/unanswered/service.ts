@@ -35,12 +35,13 @@ export function createUnansweredService(
       now?: Date;
     }): Promise<UnansweredRecordResult> {
       if (!RECORDABLE.has(input.trigger)) return { state: "SKIPPED" };
-      const now = input.now ?? new Date();
-      const sampleQuestionRedacted = redactPii(input.question).value;
-      const normalizedQuestion = normalizeQuestionForHash(sampleQuestionRedacted);
-      const questionHash = createHash("sha256").update(normalizedQuestion).digest("hex");
-
       try {
+        const now = input.now ?? new Date();
+        const redacted = redactPii(input.question);
+        if (!redacted.safe) return { state: "FAILURE", reason: "PERSISTENCE_UNAVAILABLE" };
+        const sampleQuestionRedacted = redacted.value;
+        const normalizedQuestion = normalizeQuestionForHash(sampleQuestionRedacted);
+        const questionHash = createHash("sha256").update(normalizedQuestion).digest("hex");
         const saved = await repository.upsert({
           normalizedQuestion,
           questionHash,

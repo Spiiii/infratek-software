@@ -13,7 +13,9 @@ import type {
 } from "./types.ts";
 
 function safeMessage(role: ConversationRole, rawContent: string, createdAt: Date): ConversationMessage {
-  return { role, content: redactPii(rawContent).value, createdAt: createdAt.toISOString() };
+  const redacted = redactPii(rawContent);
+  if (!redacted.safe) throw new Error("Unsafe PII remained after redaction");
+  return { role, content: redacted.value, createdAt: createdAt.toISOString() };
 }
 
 function flags(categories: readonly UnsupportedOutputCategory[]): ConversationFlags {
@@ -50,11 +52,11 @@ export function createConversationService(
     }): Promise<ConversationPersistenceResult> {
       const now = input.now ?? new Date();
       const unsupported = input.unsupportedCategories ?? [];
-      const messages = [safeMessage("user", input.userMessage, now)];
-      if (input.assistantMessage !== undefined && unsupported.length === 0) {
-        messages.push(safeMessage("assistant", input.assistantMessage, now));
-      }
       try {
+        const messages = [safeMessage("user", input.userMessage, now)];
+        if (input.assistantMessage !== undefined && unsupported.length === 0) {
+          messages.push(safeMessage("assistant", input.assistantMessage, now));
+        }
         const conversationId = await repository.create({
           sessionId: input.sessionId,
           messages,
@@ -81,11 +83,11 @@ export function createConversationService(
     }): Promise<ConversationPersistenceResult> {
       const now = input.now ?? new Date();
       const unsupported = input.unsupportedCategories ?? [];
-      const messages = [safeMessage("user", input.userMessage, now)];
-      if (input.assistantMessage !== undefined && unsupported.length === 0) {
-        messages.push(safeMessage("assistant", input.assistantMessage, now));
-      }
       try {
+        const messages = [safeMessage("user", input.userMessage, now)];
+        if (input.assistantMessage !== undefined && unsupported.length === 0) {
+          messages.push(safeMessage("assistant", input.assistantMessage, now));
+        }
         await repository.append({
           conversationId: input.conversationId,
           messages,

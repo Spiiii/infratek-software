@@ -195,11 +195,16 @@ export function createChatPostHandler(dependencies: ChatRouteDependencies) {
       : { state: "READY" as const, messages: [] };
     if (history.state === "FAILURE") return dependencyFallback(cookie);
 
-    const prepared = prepareMultiTurnRetrieval(
-      parsed.data.question,
-      history.messages,
-      dependencies.environment,
-    );
+    let prepared: ReturnType<typeof prepareMultiTurnRetrieval>;
+    try {
+      prepared = prepareMultiTurnRetrieval(
+        parsed.data.question,
+        history.messages,
+        dependencies.environment,
+      );
+    } catch {
+      return dependencyFallback(cookie);
+    }
     let retrieval: RetrievalResult;
     try {
       retrieval = await dependencies.retrieve(prepared.retrievalText);
@@ -211,6 +216,8 @@ export function createChatPostHandler(dependencies: ChatRouteDependencies) {
       decision,
       question: prepared.currentQuestion,
       generator: dependencies.generator,
+      additionalInputForBudget: prepared.retrievalText,
+      environment: dependencies.environment,
     });
 
     if (answer.state === "CALIBRATION_REQUIRED") {

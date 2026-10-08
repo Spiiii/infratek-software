@@ -59,6 +59,7 @@ function fixture(options: {
   active?: "FOUND" | "NOT_FOUND" | "FAILURE";
   conversationFailure?: boolean;
   unansweredFailure?: boolean;
+  environment?: Record<string, string | undefined>;
 } = {}) {
   const counters: Counters = { security: 0, lookup: 0, history: 0, retrieval: 0, generation: 0, conversation: 0, unanswered: 0 };
   const persisted: Array<Record<string, unknown>> = [];
@@ -122,7 +123,7 @@ function fixture(options: {
       },
     },
     production: true,
-    environment: {},
+    environment: options.environment ?? {},
   };
   return { handler: createChatPostHandler(dependencies), counters, persisted, getAuthorizeInput: () => authorizeInput };
 }
@@ -196,6 +197,22 @@ test("coarse attack filter is normalized and stops all downstream work", async (
   assert.deepEqual(f.counters, { security: 1, lookup: 0, history: 0, retrieval: 0, generation: 0, conversation: 0, unanswered: 0 });
 });
 
+test("residual phone-like PII fails closed before retrieval model persistence and unanswered", async () => {
+  const f = fixture();
+  const response = await f.handler(request({ question: "Gọi 0123456789" }));
+  assert.equal(response.status, 503);
+  assert.equal((await body(response)).status, "DEPENDENCY_FALLBACK");
+  assert.deepEqual(f.counters, {
+    security: 1,
+    lookup: 1,
+    history: 0,
+    retrieval: 0,
+    generation: 0,
+    conversation: 0,
+    unanswered: 0,
+  });
+});
+
 test("NO_CONTEXT unanswered failure remains a safe response while conversation failure fails closed", async () => {
   const analytics = fixture({ unansweredFailure: true });
   assert.equal((await body(await analytics.handler(request({ question: "q" })))).status, "NO_CONTEXT");
@@ -261,6 +278,18 @@ test("provider/citation failure returns dependency fallback without persistence 
     assert.equal((await body(await f.handler(request({ question: "q" })))).status, "DEPENDENCY_FALLBACK");
     assert.equal(f.counters.conversation + f.counters.unanswered, 0);
   }
+});
+
+test("input-budget failure returns dependency fallback without Gemini persistence or unanswered", async () => {
+  const f = fixture({
+    retrieval: retrieval("CANDIDATES"),
+    policy: calibratedPolicy,
+    environment: { CHAT_INPUT_TOKEN_BUDGET: "10" },
+  });
+  const response = await f.handler(request({ question: "q" }));
+  assert.equal(response.status, 503);
+  assert.equal((await body(response)).status, "DEPENDENCY_FALLBACK");
+  assert.equal(f.counters.generation + f.counters.conversation + f.counters.unanswered, 0);
 });
 
 test("new session cookie is set with hardened flags and never exposed in JSON", async () => {

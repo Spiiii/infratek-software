@@ -5,9 +5,11 @@ import test from "node:test";
 import { readChatBuildSafeConfig } from "./config.ts";
 import {
   normalizeQuestionForHash,
+  normalizePiiVariants,
   redactEmail,
   redactPii,
   redactVietnamesePhone,
+  verifyPiiRedaction,
 } from "./privacy.ts";
 import { buildChatSystemPrompt, NO_INFORMATION_FALLBACK } from "./prompt.ts";
 
@@ -18,6 +20,7 @@ test("build-safe defaults pin the approved P5.1 models and uncalibrated threshol
   assert.equal(config.model.embeddingDimension, 768);
   assert.equal(config.versioning.threshold, "UN-CALIBRATED");
   assert.equal(config.limits.outputMaxTokens, 256);
+  assert.equal(config.limits.inputTokenBudget, 12_000);
   assert.equal(config.limits.embeddingTimeoutMs, 15_000);
   assert.equal(config.limits.generationTimeoutMs, 10_000);
   assert.equal(
@@ -58,7 +61,30 @@ test("redacts mixed PII and reports counts", () => {
     value: "Email [EMAIL] hoặc gọi [SDT]",
     containsPii: true,
     redactions: { emails: 1, phones: 1 },
+    safe: true,
   });
+});
+
+test("normalizes obvious email and phone separator variants before redaction", () => {
+  const input = "Email user @ example . com, gọi 0(901).234-567";
+  assert.equal(normalizePiiVariants(input), "Email user@example.com, gọi 0901234567");
+  assert.deepEqual(redactPii(input), {
+    value: "Email [EMAIL], gọi [SDT]",
+    containsPii: true,
+    redactions: { emails: 1, phones: 1 },
+    safe: true,
+  });
+});
+
+test("post-redaction verifier independently fails closed on residual PII", () => {
+  assert.deepEqual(redactPii("Nội dung bình thường, không có thông tin liên hệ."), {
+    value: "Nội dung bình thường, không có thông tin liên hệ.",
+    containsPii: false,
+    redactions: { emails: 0, phones: 0 },
+    safe: true,
+  });
+  assert.equal(verifyPiiRedaction("residual @ example . com"), false);
+  assert.equal(verifyPiiRedaction("gọi 0 (901) 234 567"), false);
 });
 
 test("normalizes only after redaction and does not hash", () => {

@@ -25,6 +25,7 @@ export type RedactedInput = {
   value: string;
   containsPii: boolean;
   redactions: { emails: number; phones: number };
+  safe: boolean;
 };
 
 export type ChatVersionMetadata = {

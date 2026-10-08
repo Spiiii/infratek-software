@@ -18,6 +18,8 @@ const buildSafeSchema = z.object({
   CHAT_SESSION_CAP: positiveInteger.default(30),
   CHAT_DAILY_CAP: positiveInteger.default(150),
   CHAT_INPUT_MAX_LENGTH: positiveInteger.default(500),
+  // Conservative beta ceiling for the complete prompt; P5.7 may tune it using eval evidence.
+  CHAT_INPUT_TOKEN_BUDGET: positiveInteger.default(12_000),
   EMBED_INTERACTIVE_TIMEOUT_MS: positiveInteger.default(15_000),
   CHAT_GENERATION_TIMEOUT_MS: positiveInteger.default(10_000),
   CHAT_SESSION_TTL_SECONDS: z.coerce.number().pipe(z.literal(604_800)).default(604_800),
@@ -56,6 +58,7 @@ export type ChatBuildSafeConfig = {
     session: number;
     daily: number;
     inputMaxLength: number;
+    inputTokenBudget: number;
     embeddingTimeoutMs: number;
     generationTimeoutMs: number;
     contextMessages: number;
@@ -99,6 +102,7 @@ export function readChatBuildSafeConfig(
       session: value.CHAT_SESSION_CAP,
       daily: value.CHAT_DAILY_CAP,
       inputMaxLength: value.CHAT_INPUT_MAX_LENGTH,
+      inputTokenBudget: value.CHAT_INPUT_TOKEN_BUDGET,
       embeddingTimeoutMs: value.EMBED_INTERACTIVE_TIMEOUT_MS,
       generationTimeoutMs: value.CHAT_GENERATION_TIMEOUT_MS,
       contextMessages: value.CHAT_CONTEXT_MESSAGES,

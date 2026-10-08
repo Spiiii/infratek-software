@@ -9,6 +9,7 @@ import {
 import { buildGroundingContext, type ContextBuildFailure } from "../grounding/context.ts";
 import { buildChatSystemPrompt } from "../prompt.ts";
 import type { PreparedRetrievalQuery } from "../retrieval/query.ts";
+import { readChatBuildSafeConfig } from "../config.ts";
 import {
   validateProtectedOutput,
   type UnsupportedOutputCategory,
@@ -19,7 +20,17 @@ export type GroundedAnswerFallbackReason =
   | ChatGenerationFailure
   | "INVALID_CONTEXT"
   | "INVALID_GROUNDED_OUTPUT"
+  | "INPUT_BUDGET_EXCEEDED"
   | "GENERATION_CALL_BUDGET_EXCEEDED";
+
+// Conservative local estimate: UTF-8 bytes / 3 avoids a provider/token-count request.
+export function estimateChatInputTokens(parts: readonly string[]): number {
+  return Math.ceil(new TextEncoder().encode(parts.join("\n")).length / 3);
+}
+
+export function isChatInputWithinBudget(parts: readonly string[], budget: number): boolean {
+  return estimateChatInputTokens(parts) <= budget;
+}
 
 export type GroundedAnswerResult =
   | { state: "ANSWER"; answer: string; sources: CitedPublicSource[]; policyVersion: string }
@@ -45,6 +56,8 @@ export async function generateGroundedAnswer(options: {
   decision: AnswerDecision;
   question: PreparedRetrievalQuery;
   generator: ChatGenerationAdapter;
+  additionalInputForBudget?: string;
+  environment?: Record<string, string | undefined>;
 }): Promise<GroundedAnswerResult> {
   const { decision, generator } = options;
 
@@ -72,9 +85,24 @@ export async function generateGroundedAnswer(options: {
     };
   }
 
+  const systemPrompt = buildChatSystemPrompt(context.content);
+  const effectiveInput = [
+    systemPrompt,
+    options.additionalInputForBudget ?? "",
+    options.question.value,
+  ];
+  const inputTokenBudget = readChatBuildSafeConfig(options.environment).limits.inputTokenBudget;
+  if (!isChatInputWithinBudget(effectiveInput, inputTokenBudget)) {
+    return {
+      state: "DEPENDENCY_FALLBACK",
+      reason: "INPUT_BUDGET_EXCEEDED",
+      policyVersion: decision.policyVersion,
+    };
+  }
+
   const callsBefore = generator.calls;
   const generation = await generator.generate({
-    systemPrompt: buildChatSystemPrompt(context.content),
+    systemPrompt,
     question: options.question.value,
   });
   const physicalCalls = generator.calls - callsBefore;

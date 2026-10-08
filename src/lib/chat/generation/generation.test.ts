@@ -7,7 +7,11 @@ import { createGeminiChatAdapter } from "./gemini.ts";
 import type { ChatGenerationAdapter, GeminiGenerateContent } from "./types.ts";
 import { prepareRetrievalQuery } from "../retrieval/query.ts";
 import type { SelectedSource, SourceLabel } from "../retrieval/types.ts";
-import { generateGroundedAnswer } from "../service/grounded-answer.ts";
+import {
+  estimateChatInputTokens,
+  generateGroundedAnswer,
+  isChatInputWithinBudget,
+} from "../service/grounded-answer.ts";
 
 function response(text?: string): GenerateContentResponse {
   return { text } as unknown as GenerateContentResponse;
@@ -202,6 +206,36 @@ test("invalid context fails before generation", async () => {
     policyVersion: "test-calibrated-v1",
   });
   assert.equal(generator.calls, 0);
+});
+
+test("central input budget permits normal prompts and rejects over-budget input before Gemini", async () => {
+  assert.equal(estimateChatInputTokens(["abc"]), 1);
+  assert.equal(isChatInputWithinBudget(["abc"], 1), true);
+  assert.equal(isChatInputWithinBudget(["abcd"], 1), false);
+
+  const normal = adapter(async () => response("Thông tin an toàn [S1]."));
+  assert.equal((await generateGroundedAnswer({
+    decision: answerDecision(),
+    question,
+    generator: normal,
+    environment: { CHAT_INPUT_TOKEN_BUDGET: "12000" },
+  })).state, "ANSWER");
+  assert.equal(normal.calls, 1);
+
+  const blocked = adapter(async () => response("Không được gọi [S1]."));
+  const result = await generateGroundedAnswer({
+    decision: answerDecision([source("S1", "x".repeat(300))]),
+    question,
+    generator: blocked,
+    additionalInputForBudget: "history",
+    environment: { CHAT_INPUT_TOKEN_BUDGET: "10" },
+  });
+  assert.deepEqual(result, {
+    state: "DEPENDENCY_FALLBACK",
+    reason: "INPUT_BUDGET_EXCEEDED",
+    policyVersion: "test-calibrated-v1",
+  });
+  assert.equal(blocked.calls, 0);
 });
 
 test("unsupported protected output rejects the entire answer without retry or partial exposure", async () => {

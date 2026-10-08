@@ -1,7 +1,7 @@
 import { readChatBuildSafeConfig } from "../config.ts";
 import { redactPii } from "../privacy.ts";
 
-export type RetrievalQueryValidationCode = "INVALID_TYPE" | "EMPTY" | "TOO_LONG";
+export type RetrievalQueryValidationCode = "INVALID_TYPE" | "EMPTY" | "TOO_LONG" | "UNSAFE_PII";
 
 export class RetrievalQueryValidationError extends Error {
   readonly code: RetrievalQueryValidationCode;
@@ -36,6 +36,7 @@ export function prepareRetrievalQuery(
   if (input.length > maxLength) throw new RetrievalQueryValidationError("TOO_LONG");
 
   const redacted = redactPii(input);
+  if (!redacted.safe) throw new RetrievalQueryValidationError("UNSAFE_PII");
   const value = redacted.value.normalize("NFC").trim().replace(/\s+/gu, " ");
   if (!value) throw new RetrievalQueryValidationError("EMPTY");
 
