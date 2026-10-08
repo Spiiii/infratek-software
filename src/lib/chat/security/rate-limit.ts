@@ -55,6 +55,47 @@ return {1, 'ALLOWED', 0}
 
 type RedisEval = (script: string, keys: string[], args: unknown[]) => Promise<unknown>;
 
+export const LEAD_RATE_LIMIT_SCRIPT = `
+local now = tonumber(ARGV[1])
+local request_id = ARGV[2]
+local maximum = tonumber(ARGV[3])
+local window_ms = tonumber(ARGV[4])
+
+redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', now - window_ms)
+local count = redis.call('ZCARD', KEYS[1])
+if count >= maximum then return {0, 'LIMITED'} end
+
+redis.call('ZADD', KEYS[1], now, request_id)
+redis.call('PEXPIREAT', KEYS[1], now + window_ms)
+return {1, 'ALLOWED'}
+`;
+
+export type LeadRateLimitResult = { state: "ALLOWED" } | { state: "LIMITED" } | { state: "DEPENDENCY_UNAVAILABLE" };
+export interface DistributedLeadRateLimiter {
+  consume(input: { ipKey: string; sessionId: string; now?: number }): Promise<LeadRateLimitResult>;
+}
+
+export function createUpstashLeadRateLimiter(evalCommand: RedisEval): DistributedLeadRateLimiter {
+  return {
+    async consume(input) {
+      const now = input.now ?? Date.now();
+      const key = `chat:lead:rl:${input.ipKey}:${input.sessionId}`;
+      try {
+        const raw = await evalCommand(LEAD_RATE_LIMIT_SCRIPT, [key], [now, randomUUID(), 5, 600_000]);
+        if (!Array.isArray(raw) || raw.length < 2) return { state: "DEPENDENCY_UNAVAILABLE" };
+        if (Number(raw[0]) === 1 && raw[1] === "ALLOWED") return { state: "ALLOWED" };
+        if (Number(raw[0]) === 0 && raw[1] === "LIMITED") return { state: "LIMITED" };
+        return { state: "DEPENDENCY_UNAVAILABLE" };
+      } catch { return { state: "DEPENDENCY_UNAVAILABLE" }; }
+    },
+  };
+}
+
+export function createConfiguredUpstashLeadRateLimiter(input: { url: string; token: string }): DistributedLeadRateLimiter {
+  const redis = new Redis({ url: input.url, token: input.token, enableTelemetry: false, retry: false });
+  return createUpstashLeadRateLimiter((script, keys, args) => redis.eval(script, keys, args));
+}
+
 function utcDay(input: number): { key: string; end: number } {
   const now = new Date(input);
   const key = now.toISOString().slice(0, 10);

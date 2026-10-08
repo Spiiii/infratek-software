@@ -1,25 +1,20 @@
 import { chatLeadSchema } from "../../validations.ts";
+import { deriveIpLimiterKey } from "../security/ip.ts";
 import { authenticateChatSession } from "../security/request-session.ts";
+import type { ClientIpResolver } from "../security/types.ts";
+import type { DistributedLeadRateLimiter } from "../security/rate-limit.ts";
 
 type LeadService = { submit(input: {
   name: string; email?: string; phone?: string; company: string; message?: string; conversationId?: string; sessionId: string;
 }): Promise<{ state: "SAVED" | "SAVED_NOTIFICATION_FAILED" | "FORBIDDEN" | "FAILURE" }> };
-export interface LeadRateLimiter { consume(sessionId: string, now?: number): boolean; }
-
-export function createMemoryLeadRateLimiter(maximum = 5, windowMs = 600_000): LeadRateLimiter {
-  const entries = new Map<string, number[]>();
-  return { consume(sessionId, now = Date.now()) {
-    const active = (entries.get(sessionId) ?? []).filter((time) => time > now - windowMs);
-    if (active.length >= maximum) { entries.set(sessionId, active); return false; }
-    entries.set(sessionId, [...active, now]);
-    return true;
-  } };
-}
-
 const json = (body: unknown, status: number) => Response.json(body, { status, headers: { "cache-control": "no-store" } });
 
 export function createLeadPostHandler(input: {
-  service: LeadService; limiter: LeadRateLimiter; environment?: Record<string, string | undefined>;
+  service: LeadService;
+  limiter: DistributedLeadRateLimiter;
+  clientIpResolver: ClientIpResolver;
+  ipHmacSecret: string;
+  environment?: Record<string, string | undefined>;
 }) {
   return async function POST(request: Request) {
     if (request.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase() !== "application/json") return json({ status: "INVALID_REQUEST" }, 400);
@@ -31,7 +26,14 @@ export function createLeadPostHandler(input: {
     const session = authenticateChatSession(request, input.environment);
     if (session.state === "UNAVAILABLE") return json({ status: "DEPENDENCY_UNAVAILABLE" }, 503);
     if (session.state !== "VALID") return json({ status: "FORBIDDEN" }, 403);
-    if (!input.limiter.consume(session.sessionId)) return json({ status: "RATE_LIMITED" }, 429);
+    const clientIp = input.clientIpResolver.resolve(request);
+    if (clientIp.state !== "RESOLVED") return json({ status: "DEPENDENCY_UNAVAILABLE" }, 503);
+    const limited = await input.limiter.consume({
+      ipKey: deriveIpLimiterKey(clientIp.normalizedIp, input.ipHmacSecret),
+      sessionId: session.sessionId,
+    });
+    if (limited.state === "DEPENDENCY_UNAVAILABLE") return json({ status: "DEPENDENCY_UNAVAILABLE" }, 503);
+    if (limited.state === "LIMITED") return json({ status: "RATE_LIMITED" }, 429);
     const { website: _website, ...lead } = parsed.data;
     void _website;
     const result = await input.service.submit({
