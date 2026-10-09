@@ -5,7 +5,9 @@ import { join } from "node:path";
 import test from "node:test";
 
 import {
+  createEvaluationPayloadConfig,
   createLiveExecutor,
+  initializeEvaluationPayload,
   loadPayloadRuntimeModules,
   withManagedRetrievalExecutor,
 } from "./run-retrieval-eval.ts";
@@ -23,6 +25,55 @@ test("tsx resolves the real Payload config import chain", async () => {
   const modules = await loadPayloadRuntimeModules();
   assert.equal(typeof modules.getPayload, "function");
   assert.equal(typeof modules.payloadConfig, "object");
+});
+
+test("evaluation config disables type generation without mutating Payload config", async () => {
+  const databaseAdapter = { name: "synthetic-db" };
+  const collections = [{ slug: "synthetic-collection" }];
+  const plugins = [() => undefined];
+  const originalTypescript = {
+    autoGenerate: true,
+    outputFile: "src/payload-types.ts",
+  };
+  const original = {
+    db: databaseAdapter,
+    collections,
+    plugins,
+    typescript: originalTypescript,
+  };
+
+  const evaluation = await createEvaluationPayloadConfig(Promise.resolve(original) as never);
+
+  assert.notEqual(evaluation, original);
+  assert.notEqual(evaluation.typescript, originalTypescript);
+  assert.equal(evaluation.typescript.autoGenerate, false);
+  assert.equal(originalTypescript.autoGenerate, true);
+  assert.equal(evaluation.db, databaseAdapter);
+  assert.equal(evaluation.collections, collections);
+  assert.equal(evaluation.plugins, plugins);
+});
+
+test("evaluation initialization passes only the no-generation config to Payload", async () => {
+  const original = {
+    collections: [],
+    plugins: [],
+    typescript: {
+      autoGenerate: true,
+      outputFile: "src/payload-types.ts",
+    },
+  };
+  let receivedConfigPromise: Promise<typeof original> | undefined;
+  const payload = Promise.resolve({ synthetic: true });
+  const result = initializeEvaluationPayload(((options: { config: Promise<typeof original> }) => {
+    receivedConfigPromise = options.config;
+    return payload;
+  }) as never, Promise.resolve(original) as never);
+
+  assert.equal(result, payload);
+  assert.ok(receivedConfigPromise);
+  const receivedConfig = await receivedConfigPromise;
+  assert.equal(receivedConfig?.typescript.autoGenerate, false);
+  assert.equal(original.typescript.autoGenerate, true);
 });
 
 test("live executor construction is provider-free and database-lazy", async () => {

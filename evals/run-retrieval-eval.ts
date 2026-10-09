@@ -43,6 +43,26 @@ type PayloadRuntimeModules = {
   payloadConfig: Awaited<typeof import("../payload.config.ts")>["default"];
 };
 
+export async function createEvaluationPayloadConfig(
+  payloadConfig: PayloadRuntimeModules["payloadConfig"],
+): Promise<Awaited<PayloadRuntimeModules["payloadConfig"]>> {
+  const resolvedConfig = await payloadConfig;
+  return {
+    ...resolvedConfig,
+    typescript: {
+      ...resolvedConfig.typescript,
+      autoGenerate: false,
+    },
+  };
+}
+
+export function initializeEvaluationPayload(
+  getPayload: PayloadRuntimeModules["getPayload"],
+  payloadConfig: PayloadRuntimeModules["payloadConfig"],
+): ReturnType<PayloadRuntimeModules["getPayload"]> {
+  return getPayload({ config: createEvaluationPayloadConfig(payloadConfig) });
+}
+
 export async function loadPayloadRuntimeModules(): Promise<PayloadRuntimeModules> {
   const [{ getPayload }, { default: payloadConfig }] = await Promise.all([
     import("payload"),
@@ -63,7 +83,7 @@ export async function createLiveExecutor(
   const { getPayload, payloadConfig } = await loadModules();
   let payloadPromise: ReturnType<typeof getPayload> | undefined;
   const payload = () => {
-    payloadPromise ??= getPayload({ config: payloadConfig });
+    payloadPromise ??= initializeEvaluationPayload(getPayload, payloadConfig);
     return payloadPromise;
   };
   const executor = {
