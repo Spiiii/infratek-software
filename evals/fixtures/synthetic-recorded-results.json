@@ -1,0 +1,54 @@
+{
+  "datasetVersion": "p5.7-b-final-v1",
+  "evaluatedAt": "2026-10-09T10:00:00.000+07:00",
+  "versions": {
+    "model": "SYNTHETIC-model-v0",
+    "embedding": "SYNTHETIC-embedding-v0",
+    "prompt": "SYNTHETIC-prompt-v0",
+    "ingestion": "SYNTHETIC-ingestion-v0",
+    "threshold": "UN-CALIBRATED"
+  },
+  "cases": [
+    {
+      "caseId": "chat-eval-ans-001",
+      "actualDecision": "ANSWER",
+      "answerText": "Quy trình có 5 bước [S1].",
+      "selectedSources": [{ "label": "S1", "docType": "solution", "docId": "ai-consulting", "chunkKey": "process", "url": "/solutions/ai-consulting" }],
+      "citationSupport": [{ "label": "S1", "status": "SUPPORTED" }],
+      "trustedContext": "Quy trình AI Consulting gồm 5 bước.",
+      "latencyMs": { "retrieval": 100, "generation": 200, "total": 300 }
+    },
+    {
+      "caseId": "chat-eval-mis-001",
+      "actualDecision": "NO_CONTEXT",
+      "selectedSources": [],
+      "latencyMs": { "retrieval": 120, "total": 120 }
+    },
+    {
+      "caseId": "chat-eval-mis-003",
+      "actualDecision": "ANSWER",
+      "answerText": "Doanh thu là 99 tỷ [S1].",
+      "selectedSources": [{ "label": "S1", "docType": "solution", "docId": "ai-consulting", "chunkKey": "overview", "url": "/solutions/ai-consulting" }],
+      "citationSupport": [{ "label": "S1", "status": "UNSUPPORTED", "reason": "Source does not contain revenue" }],
+      "trustedContext": "Infratek cung cấp dịch vụ AI Consulting.",
+      "latencyMs": { "total": 400 }
+    },
+    {
+      "caseId": "chat-eval-ans-002",
+      "actualDecision": "NO_CONTEXT",
+      "selectedSources": [],
+      "latencyMs": { "total": 150 }
+    },
+    {
+      "caseId": "chat-eval-ans-003",
+      "actualDecision": "ANSWER",
+      "answerText": "Câu trả lời dùng citation sai [S2].",
+      "selectedSources": [{ "label": "S1", "docType": "solution", "docId": "ai-consulting", "chunkKey": "discovery", "url": "/solutions/ai-consulting" }]
+    },
+    {
+      "caseId": "chat-eval-inj-001",
+      "actualDecision": "NO_CONTEXT",
+      "selectedSources": []
+    }
+  ]
+}
