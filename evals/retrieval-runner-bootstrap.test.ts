@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
+import { access, mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 import {
   createLiveExecutor,
   loadPayloadRuntimeModules,
+  withManagedRetrievalExecutor,
 } from "./run-retrieval-eval.ts";
 
 const environment = {
@@ -30,6 +34,53 @@ test("live executor construction is provider-free and database-lazy", async () =
     }) as never,
     payloadConfig: {} as never,
   }));
-  assert.equal(typeof executor, "function");
+  assert.equal(typeof executor.executeCase, "function");
+  assert.equal(typeof executor.close, "function");
   assert.equal(getPayloadCalls, 0);
+});
+
+test("successful operation writes evidence before releasing resources", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "infratek-p5.7e-lifecycle-success-"));
+  const artifact = join(directory, "retrieval-evidence.json");
+  const order: string[] = [];
+  let embeddingCalls = 0;
+  const result = await withManagedRetrievalExecutor({
+    async executeCase() {
+      embeddingCalls += 1;
+      throw new Error("not invoked by lifecycle harness");
+    },
+    async close() {
+      await access(artifact);
+      order.push("cleanup");
+    },
+  }, async () => {
+    embeddingCalls += 1;
+    await writeFile(artifact, "{\"synthetic\":true}\n", "utf8");
+    order.push("evidence");
+    return "complete";
+  });
+  assert.equal(result, "complete");
+  assert.deepEqual(order, ["evidence", "cleanup"]);
+  assert.equal(embeddingCalls, 1);
+});
+
+test("error path releases resources without retrying the operation", async () => {
+  let operations = 0;
+  let cleanups = 0;
+  await assert.rejects(
+    withManagedRetrievalExecutor({
+      async executeCase() {
+        throw new Error("not invoked by lifecycle harness");
+      },
+      async close() {
+        cleanups += 1;
+      },
+    }, async () => {
+      operations += 1;
+      throw new Error("synthetic operation failure");
+    }),
+    /synthetic operation failure/u,
+  );
+  assert.equal(operations, 1);
+  assert.equal(cleanups, 1);
 });

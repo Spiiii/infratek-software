@@ -51,10 +51,15 @@ export async function loadPayloadRuntimeModules(): Promise<PayloadRuntimeModules
   return { getPayload, payloadConfig };
 }
 
+export type ManagedRetrievalExecutor = {
+  executeCase: RetrievalCaseExecutor;
+  close(): Promise<void>;
+};
+
 export async function createLiveExecutor(
   environment: Record<string, string | undefined>,
   loadModules: () => Promise<PayloadRuntimeModules> = loadPayloadRuntimeModules,
-): Promise<RetrievalCaseExecutor> {
+): Promise<ManagedRetrievalExecutor> {
   const { getPayload, payloadConfig } = await loadModules();
   let payloadPromise: ReturnType<typeof getPayload> | undefined;
   const payload = () => {
@@ -71,7 +76,7 @@ export async function createLiveExecutor(
   const vector = new VectorRetrievalRepository(executor, environment);
   const fts = new FtsRetrievalRepository(executor);
 
-  return async (item) => {
+  const executeCase: RetrievalCaseExecutor = async (item) => {
     let vectorCandidates: VectorCandidate[] = [];
     let ftsCandidates: FtsCandidate[] = [];
     const result = await retrieve(item.question, {
@@ -93,6 +98,28 @@ export async function createLiveExecutor(
     }, environment);
     return { result, vectorCandidates, ftsCandidates };
   };
+
+  return {
+    executeCase,
+    async close() {
+      const initializedPayload = payloadPromise;
+      payloadPromise = undefined;
+      if (!initializedPayload) return;
+      const instance = await initializedPayload.catch(() => undefined);
+      if (instance) await instance.destroy();
+    },
+  };
+}
+
+export async function withManagedRetrievalExecutor<T>(
+  executor: ManagedRetrievalExecutor,
+  operation: (executeCase: RetrievalCaseExecutor) => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation(executor.executeCase);
+  } finally {
+    await executor.close();
+  }
 }
 
 export async function main(): Promise<void> {
@@ -123,12 +150,15 @@ export async function main(): Promise<void> {
   for (const caseId of caseIds) {
     if (!datasetIds.has(caseId)) throw new Error(`Unknown case id: ${caseId}`);
   }
-  const executeCase = live ? await createLiveExecutor(process.env) : undefined;
-  const { evidence, artifactPath } = await runRetrievalEvaluation(
+  const execute = (executeCase?: RetrievalCaseExecutor) => runRetrievalEvaluation(
     dataset,
     options,
     { environment: process.env, executeCase },
   );
+  const result = live
+    ? await withManagedRetrievalExecutor(await createLiveExecutor(process.env), execute)
+    : await execute();
+  const { evidence, artifactPath } = result;
 
   process.stdout.write(`${JSON.stringify({
     runId: evidence.runId,
