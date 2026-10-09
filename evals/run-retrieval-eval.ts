@@ -1,5 +1,6 @@
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import nextEnv from "@next/env";
 
@@ -37,17 +38,32 @@ function required(name: string): string {
   return result;
 }
 
-async function createLiveExecutor(
-  environment: Record<string, string | undefined>,
-): Promise<RetrievalCaseExecutor> {
+type PayloadRuntimeModules = {
+  getPayload: typeof import("payload")["getPayload"];
+  payloadConfig: Awaited<typeof import("../payload.config.ts")>["default"];
+};
+
+export async function loadPayloadRuntimeModules(): Promise<PayloadRuntimeModules> {
   const [{ getPayload }, { default: payloadConfig }] = await Promise.all([
     import("payload"),
     import("../payload.config.ts"),
   ]);
-  const payload = await getPayload({ config: payloadConfig });
+  return { getPayload, payloadConfig };
+}
+
+export async function createLiveExecutor(
+  environment: Record<string, string | undefined>,
+  loadModules: () => Promise<PayloadRuntimeModules> = loadPayloadRuntimeModules,
+): Promise<RetrievalCaseExecutor> {
+  const { getPayload, payloadConfig } = await loadModules();
+  let payloadPromise: ReturnType<typeof getPayload> | undefined;
+  const payload = () => {
+    payloadPromise ??= getPayload({ config: payloadConfig });
+    return payloadPromise;
+  };
   const executor = {
     async query(sql: string, parameters: unknown[]) {
-      const result = await payload.db.pool.query(sql, parameters);
+      const result = await (await payload()).db.pool.query(sql, parameters);
       return { rows: result.rows as Array<Record<string, unknown>> };
     },
   };
@@ -79,45 +95,51 @@ async function createLiveExecutor(
   };
 }
 
-const repositoryRoot = process.cwd();
-nextEnv.loadEnvConfig(repositoryRoot);
-const runId = required("--run-id");
-const live = process.argv.includes("--live");
-const caseIds = values("--case-id").map((item) => item.trim()).filter(Boolean);
-const maxCases = positiveInteger("--max-cases", live ? undefined : 120);
-const maxEmbeddingCalls = value("--max-embedding-calls")
-  ? positiveInteger("--max-embedding-calls")
-  : undefined;
-const outputDirectory = resolve(
-  value("--output-dir") ?? resolve(tmpdir(), "infratek-p5.7e", runId),
-);
-const dataset = await loadAndValidateChatDataset();
-const options: RetrievalRunnerOptions = {
-  runId,
-  outputDirectory,
-  repositoryRoot,
-  live,
-  caseIds,
-  maxCases,
-  maxEmbeddingCalls,
-};
-validateRetrievalRunnerOptions(options);
-const datasetIds = new Set(dataset.cases.map((item) => item.id));
-for (const caseId of caseIds) {
-  if (!datasetIds.has(caseId)) throw new Error(`Unknown case id: ${caseId}`);
-}
-const executeCase = live ? await createLiveExecutor(process.env) : undefined;
-const { evidence, artifactPath } = await runRetrievalEvaluation(
-  dataset,
-  options,
-  { environment: process.env, executeCase },
-);
+export async function main(): Promise<void> {
+  const repositoryRoot = process.cwd();
+  nextEnv.loadEnvConfig(repositoryRoot);
+  const runId = required("--run-id");
+  const live = process.argv.includes("--live");
+  const caseIds = values("--case-id").map((item) => item.trim()).filter(Boolean);
+  const maxCases = positiveInteger("--max-cases", live ? undefined : 120);
+  const maxEmbeddingCalls = value("--max-embedding-calls")
+    ? positiveInteger("--max-embedding-calls")
+    : undefined;
+  const outputDirectory = resolve(
+    value("--output-dir") ?? resolve(tmpdir(), "infratek-p5.7e", runId),
+  );
+  const dataset = await loadAndValidateChatDataset();
+  const options: RetrievalRunnerOptions = {
+    runId,
+    outputDirectory,
+    repositoryRoot,
+    live,
+    caseIds,
+    maxCases,
+    maxEmbeddingCalls,
+  };
+  validateRetrievalRunnerOptions(options);
+  const datasetIds = new Set(dataset.cases.map((item) => item.id));
+  for (const caseId of caseIds) {
+    if (!datasetIds.has(caseId)) throw new Error(`Unknown case id: ${caseId}`);
+  }
+  const executeCase = live ? await createLiveExecutor(process.env) : undefined;
+  const { evidence, artifactPath } = await runRetrievalEvaluation(
+    dataset,
+    options,
+    { environment: process.env, executeCase },
+  );
 
-process.stdout.write(`${JSON.stringify({
-  runId: evidence.runId,
-  mode: evidence.mode,
-  cases: evidence.cases.length,
-  embeddingCalls: evidence.cases.reduce((sum, item) => sum + item.embedding.calls, 0),
-  generationCalls: evidence.configuration.generationCalls,
-  artifactPath,
-})}\n`);
+  process.stdout.write(`${JSON.stringify({
+    runId: evidence.runId,
+    mode: evidence.mode,
+    cases: evidence.cases.length,
+    embeddingCalls: evidence.cases.reduce((sum, item) => sum + item.embedding.calls, 0),
+    generationCalls: evidence.configuration.generationCalls,
+    artifactPath,
+  })}\n`);
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  await main();
+}
