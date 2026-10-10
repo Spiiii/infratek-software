@@ -10,12 +10,14 @@ import { contentHash } from "../src/lib/chat/ingestion/hash.ts";
 import type { RetrievalResult } from "../src/lib/chat/retrieval/types.ts";
 import {
   hydrateRecordedSources,
+  runHydrationPreflight,
   runGenerationEvaluation,
   validateGenerationRunnerOptions,
   type GenerationRunnerOptions,
   type HydratedChunkRow,
 } from "./generation-runner.ts";
 import {
+  assertPreviewDatabase,
   loadHydrationRowsReadOnly,
   withHydrationResource,
 } from "./run-generation-eval.ts";
@@ -129,6 +131,94 @@ test("dry-run validates exact selection with zero provider and database calls", 
   assert.equal(result.evidence.configuration.retrievalCalls, 0);
   assert.equal(result.evidence.configuration.automaticProviderRetries, 0);
   assert.equal(beforeTypes, afterTypes);
+});
+
+test("hydration-only preflight selects exactly six cases with zero provider calls", async () => {
+  const dataset = await loadAndValidateChatDataset();
+  const caseIds = [
+    "chat-eval-ans-024",
+    "chat-eval-mis-013",
+    "chat-eval-inj-002",
+    "chat-eval-lang-006",
+    "chat-eval-bnd-002",
+    "chat-eval-ans-001",
+  ];
+  let hydrationCalls = 0;
+  const beforeTypes = createHash("sha256").update(await readFile("src/payload-types.ts")).digest("hex");
+  const result = await runHydrationPreflight(
+    dataset,
+    [
+      artifact(caseIds.slice(0, 3)),
+      artifact(caseIds.slice(3), { runId: "synthetic-retrieval-run-2" }),
+    ],
+    options(await output("hydrate-only"), {
+      caseIds,
+      maxCases: 6,
+    }),
+    {
+      environment,
+      sourceArtifactIntegrity: [
+        { runId: "synthetic-retrieval-run", sha256: "a".repeat(64), bytes: 100 },
+        { runId: "synthetic-retrieval-run-2", sha256: "b".repeat(64), bytes: 200 },
+      ],
+      hydrateCases: async (selected) => {
+        hydrationCalls += 1;
+        return new Map(selected.map(({ datasetCase, artifactCase }) => [
+          datasetCase.id,
+          artifactCase.finalTop6.map((item) => {
+            const index = Number(item.docId.replace("doc-", ""));
+            return row(index);
+          }),
+        ]));
+      },
+    },
+  );
+  const afterTypes = createHash("sha256").update(await readFile("src/payload-types.ts")).digest("hex");
+  assert.equal(hydrationCalls, 1);
+  assert.deepEqual(result.evidence.cases.map((item) => item.caseId), caseIds);
+  assert.equal(result.evidence.configuration.selectedCases, 6);
+  assert.equal(result.evidence.configuration.expectedChunkReferences, 12);
+  assert.equal(result.evidence.configuration.resolvedChunkReferences, 12);
+  assert.equal(result.evidence.configuration.generationCalls, 0);
+  assert.equal(result.evidence.configuration.embeddingCalls, 0);
+  assert.equal(result.evidence.configuration.retrievalCalls, 0);
+  assert.equal(result.evidence.configuration.databaseWrites, 0);
+  assert.equal(result.evidence.cases.every((item) => item.contextManifest[0]?.label === "S1"), true);
+  assert.equal(result.evidence.cases.every((item) => item.contextManifest[1]?.label === "S2"), true);
+  assert.equal(beforeTypes, afterTypes);
+});
+
+test("hydration-only mode rejects generation settings and bad integrity metadata", async () => {
+  const dataset = await loadAndValidateChatDataset();
+  const raw = artifact(["chat-eval-ans-024"]);
+  const baseDependencies = {
+    environment,
+    hydrateCases: async () => new Map<string, HydratedChunkRow[]>(),
+    sourceArtifactIntegrity: [{ runId: "wrong-run", sha256: "a".repeat(64), bytes: 1 }],
+  };
+  await assert.rejects(
+    runHydrationPreflight(dataset, raw, options(await output("hydrate-live"), {
+      live: true,
+      maxGenerationCalls: 1,
+    }), baseDependencies),
+    /cannot enable live generation/u,
+  );
+  await assert.rejects(
+    runHydrationPreflight(dataset, raw, options(await output("hydrate-integrity")), baseDependencies),
+    /integrity metadata mismatch/u,
+  );
+});
+
+test("Preview target guard accepts only phase3-preview neondb", () => {
+  assert.doesNotThrow(() => assertPreviewDatabase({
+    DATABASE_URL: "postgresql://user:secret@ep-nameless-leaf-b3fc4hoi-pooler.c-4.ap-southeast-1.aws.neon.tech/neondb?sslmode=require",
+  }));
+  assert.throws(() => assertPreviewDatabase({
+    DATABASE_URL: "postgresql://user:secret@ep-still-fog-b3h6yj1y-pooler.c-4.ap-southeast-1.aws.neon.tech/neondb?sslmode=require",
+  }), /does not match/u);
+  assert.throws(() => assertPreviewDatabase({
+    DATABASE_URL: "postgresql://user:secret@ep-nameless-leaf-b3fc4hoi-pooler.c-4.ap-southeast-1.aws.neon.tech/other?sslmode=require",
+  }), /requires Preview database neondb/u);
 });
 
 test("selection and live generation budgets fail closed", async () => {
@@ -345,6 +435,7 @@ test("production pre-calibration policy remains unchanged", () => {
 test("read-only hydration uses rollback and resource cleanup on success and error", async () => {
   const queries: string[] = [];
   let closed = 0;
+  let poolsEnded = 0;
   const resource = {
     db: {
       pool: {
@@ -352,6 +443,7 @@ test("read-only hydration uses rollback and resource cleanup on success and erro
           queries.push(sql);
           return { rows: sql.startsWith("WITH wanted") ? [] : [] };
         },
+        async end() { poolsEnded += 1; },
       },
     },
     async destroy() { closed += 1; },
@@ -361,11 +453,17 @@ test("read-only hydration uses rollback and resource cleanup on success and erro
   assert.match(queries.at(-1) ?? "", /ROLLBACK/u);
   assert.equal(queries.some((sql) => /INSERT|UPDATE|DELETE/iu.test(sql)), false);
   assert.equal(closed, 1);
+  assert.equal(poolsEnded, 1);
 
   let errorClosed = 0;
+  let errorPoolsEnded = 0;
   await assert.rejects(withHydrationResource({
-    db: { pool: { async query() { throw new Error("synthetic db error"); } } },
+    db: { pool: {
+      async query() { throw new Error("synthetic db error"); },
+      async end() { errorPoolsEnded += 1; },
+    } },
     async destroy() { errorClosed += 1; },
   }, (payload) => loadHydrationRowsReadOnly(payload, [candidate(1)])), /synthetic db error/u);
   assert.equal(errorClosed, 1);
+  assert.equal(errorPoolsEnded, 1);
 });

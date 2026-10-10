@@ -12,6 +12,7 @@ import { validateProtectedOutput } from "../src/lib/chat/safety/output.ts";
 import type { ChatEvalDataset } from "./validate-chat-dataset.ts";
 
 export const GENERATION_EVIDENCE_FILENAME = "generation-evidence.json";
+export const HYDRATION_EVIDENCE_FILENAME = "hydration-evidence.json";
 export const EVAL_ONLY_POLICY_VERSION = "eval-only-recorded-evidence-p5.7-e4-b1";
 
 const identitySchema = z.object({
@@ -136,6 +137,46 @@ export type GenerationEvidence = {
   };
   versions: RetrievalArtifact["versions"];
   cases: GenerationCaseEvidence[];
+};
+
+export type SourceArtifactIntegrity = {
+  runId: string;
+  sha256: string;
+  bytes: number;
+};
+
+export type HydrationEvidence = {
+  kind: "P5.7-E_HYDRATION_EVIDENCE";
+  runId: string;
+  runTimestamp: string;
+  datasetVersion: string;
+  sourceArtifacts: SourceArtifactIntegrity[];
+  target: { project: "infratek-phase0-spike"; branch: "phase3-preview"; database: "neondb" };
+  configuration: {
+    selectedCases: number;
+    expectedChunkReferences: number;
+    resolvedChunkReferences: number;
+    uniqueExpectedChunks: number;
+    embeddingCalls: 0;
+    retrievalCalls: 0;
+    queryRewriteCalls: 0;
+    generationCalls: 0;
+    databaseWrites: 0;
+  };
+  versions: RetrievalArtifact["versions"];
+  cases: Array<{
+    caseId: string;
+    sourceArtifactRunId: string;
+    expectedSources: number;
+    resolvedSources: number;
+    identityValidation: "PASS";
+    urlValidation: "PASS";
+    contentHashValidation: "PASS";
+    contentNonEmpty: "PASS";
+    orderValidation: "PASS";
+    contextManifest: GenerationCaseEvidence["contextManifest"];
+  }>;
+  failures: string[];
 };
 
 export type SelectedGenerationCase = {
@@ -442,6 +483,87 @@ export async function runGenerationEvaluation(
   };
   await mkdir(outputDirectory, { recursive: false });
   const artifactPath = resolve(outputDirectory, GENERATION_EVIDENCE_FILENAME);
+  await writeFile(artifactPath, `${JSON.stringify(evidence, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
+  return { evidence, artifactPath };
+}
+
+export async function runHydrationPreflight(
+  dataset: ChatEvalDataset,
+  rawArtifacts: unknown | unknown[],
+  options: GenerationRunnerOptions,
+  dependencies: {
+    environment?: Record<string, string | undefined>;
+    hydrateCases: (selected: SelectedGenerationCase[]) => Promise<Map<string, HydratedChunkRow[]>>;
+    sourceArtifactIntegrity: SourceArtifactIntegrity[];
+  },
+): Promise<{ evidence: HydrationEvidence; artifactPath: string }> {
+  if (options.live) throw new Error("Hydration-only preflight cannot enable live generation");
+  if (options.maxGenerationCalls !== undefined) {
+    throw new Error("Hydration-only preflight cannot accept a generation call budget");
+  }
+  validateGenerationRunnerOptions(options);
+  const environment = dependencies.environment ?? process.env;
+  const artifacts = parseRetrievalArtifacts(rawArtifacts, dataset, environment);
+  const selected = selectCases(dataset, artifacts, options);
+  const artifactRunIds = artifacts.map((artifact) => artifact.runId);
+  if (
+    dependencies.sourceArtifactIntegrity.length !== artifactRunIds.length ||
+    dependencies.sourceArtifactIntegrity.some((item, index) => item.runId !== artifactRunIds[index])
+  ) {
+    throw new Error("Source artifact integrity metadata mismatch");
+  }
+  const outputDirectory = assertSafeGenerationOutputDirectory(options.outputDirectory, options.repositoryRoot);
+  const hydrated = await dependencies.hydrateCases(selected);
+  const cases: HydrationEvidence["cases"] = [];
+  let expectedChunkReferences = 0;
+  let resolvedChunkReferences = 0;
+  const uniqueExpectedChunks = new Set<string>();
+
+  for (const { datasetCase, artifactCase, artifactRunId } of selected) {
+    const rows = hydrated.get(datasetCase.id);
+    if (!rows) throw new Error(`Hydration result missing case: ${datasetCase.id}`);
+    expectedChunkReferences += artifactCase.finalTop6.length;
+    for (const candidate of artifactCase.finalTop6) uniqueExpectedChunks.add(identity(candidate));
+    const context = hydrateRecordedSources(artifactCase.finalTop6, rows);
+    resolvedChunkReferences += context.sources.length;
+    cases.push({
+      caseId: datasetCase.id,
+      sourceArtifactRunId: artifactRunId,
+      expectedSources: artifactCase.finalTop6.length,
+      resolvedSources: context.sources.length,
+      identityValidation: "PASS",
+      urlValidation: "PASS",
+      contentHashValidation: "PASS",
+      contentNonEmpty: "PASS",
+      orderValidation: "PASS",
+      contextManifest: context.manifest,
+    });
+  }
+
+  const evidence: HydrationEvidence = {
+    kind: "P5.7-E_HYDRATION_EVIDENCE",
+    runId: options.runId,
+    runTimestamp: options.timestamp ?? new Date().toISOString(),
+    datasetVersion: dataset.datasetVersion,
+    sourceArtifacts: dependencies.sourceArtifactIntegrity,
+    target: { project: "infratek-phase0-spike", branch: "phase3-preview", database: "neondb" },
+    configuration: {
+      selectedCases: selected.length,
+      expectedChunkReferences,
+      resolvedChunkReferences,
+      uniqueExpectedChunks: uniqueExpectedChunks.size,
+      embeddingCalls: 0,
+      retrievalCalls: 0,
+      queryRewriteCalls: 0,
+      generationCalls: 0,
+      databaseWrites: 0,
+    },
+    versions: artifacts[0]!.versions,
+    cases,
+    failures: [],
+  };
+  await mkdir(outputDirectory, { recursive: false });
+  const artifactPath = resolve(outputDirectory, HYDRATION_EVIDENCE_FILENAME);
   await writeFile(artifactPath, `${JSON.stringify(evidence, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
   return { evidence, artifactPath };
 }

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -16,6 +17,7 @@ import {
 } from "./run-retrieval-eval.ts";
 import {
   EVAL_ONLY_POLICY_VERSION,
+  runHydrationPreflight,
   runGenerationEvaluation,
   validateGenerationRunnerOptions,
   type GenerationExecution,
@@ -54,12 +56,15 @@ type SelectedHydrationCase = {
 
 type QueryablePayload = {
   db: {
-    pool: { query(sql: string, parameters?: unknown[]): Promise<{ rows: Array<Record<string, unknown>> }> };
+    pool: {
+      query(sql: string, parameters?: unknown[]): Promise<{ rows: Array<Record<string, unknown>> }>;
+      end(): Promise<void>;
+    };
   };
   destroy(): Promise<void>;
 };
 
-function assertPreviewDatabase(environment: Record<string, string | undefined>): string {
+export function assertPreviewDatabase(environment: Record<string, string | undefined>): string {
   const databaseUrl = environment.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL is required for live hydration");
   assertMigrationTarget("preview", databaseUrl);
@@ -123,7 +128,11 @@ export async function withHydrationResource<T>(
   try {
     return await operation(resource);
   } finally {
-    await resource.destroy();
+    try {
+      await resource.destroy();
+    } finally {
+      await resource.db.pool.end();
+    }
   }
 }
 
@@ -175,6 +184,8 @@ export async function main(): Promise<void> {
   nextEnv.loadEnvConfig(repositoryRoot);
   const runId = required("--run-id");
   const live = process.argv.includes("--live");
+  const hydrateOnly = process.argv.includes("--hydrate-only");
+  if (live && hydrateOnly) throw new Error("--live and --hydrate-only are mutually exclusive");
   const caseIds = values("--case-id").map((item) => item.trim()).filter(Boolean);
   const maxCases = positiveInteger("--max-cases");
   const maxGenerationCalls = value("--max-generation-calls")
@@ -185,8 +196,22 @@ export async function main(): Promise<void> {
   );
   const retrievalArtifactPaths = values("--retrieval-artifact").map((item) => item.trim()).filter(Boolean);
   if (retrievalArtifactPaths.length === 0) throw new Error("--retrieval-artifact is required");
-  const rawArtifacts = await Promise.all(retrievalArtifactPaths.map(async (path) =>
-    JSON.parse(await readFile(resolve(path), "utf8")) as unknown));
+  const artifactFiles = await Promise.all(retrievalArtifactPaths.map(async (path) => {
+    const buffer = await readFile(resolve(path));
+    const raw = JSON.parse(buffer.toString("utf8")) as unknown;
+    const runId = typeof raw === "object" && raw !== null && "runId" in raw
+      ? String((raw as { runId: unknown }).runId)
+      : "";
+    return {
+      raw,
+      integrity: {
+        runId,
+        sha256: createHash("sha256").update(buffer).digest("hex"),
+        bytes: buffer.byteLength,
+      },
+    };
+  }));
+  const rawArtifacts = artifactFiles.map((item) => item.raw);
   const dataset = await loadAndValidateChatDataset();
   const options: GenerationRunnerOptions = {
     runId,
@@ -198,6 +223,24 @@ export async function main(): Promise<void> {
     maxGenerationCalls,
   };
   validateGenerationRunnerOptions(options);
+  if (hydrateOnly) {
+    const result = await runHydrationPreflight(dataset, rawArtifacts, options, {
+      environment: process.env,
+      hydrateCases: (selected) => hydrateSelectedCases(selected, process.env),
+      sourceArtifactIntegrity: artifactFiles.map((item) => item.integrity),
+    });
+    process.stdout.write(`${JSON.stringify({
+      runId: result.evidence.runId,
+      mode: "HYDRATION_ONLY",
+      cases: result.evidence.cases.length,
+      expectedChunks: result.evidence.configuration.expectedChunkReferences,
+      resolvedChunks: result.evidence.configuration.resolvedChunkReferences,
+      generationCalls: 0,
+      embeddingCalls: 0,
+      artifactPath: result.artifactPath,
+    })}\n`);
+    return;
+  }
   const result = await runGenerationEvaluation(dataset, rawArtifacts, options, {
     environment: process.env,
     ...(live ? {
