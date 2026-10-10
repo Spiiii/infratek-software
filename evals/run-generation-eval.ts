@@ -5,16 +5,13 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import nextEnv from "@next/env";
+import { Pool } from "pg";
 
 import { prepareRetrievalQuery } from "../src/lib/chat/retrieval/query.ts";
 import type { SelectedSource } from "../src/lib/chat/retrieval/types.ts";
 import { createLiveGeminiChatAdapter } from "../src/lib/chat/generation/gemini.ts";
 import { generateGroundedAnswer } from "../src/lib/chat/service/grounded-answer.ts";
 import { assertMigrationTarget } from "../scripts/migration-target-guard.ts";
-import {
-  createEvaluationPayloadConfig,
-  loadPayloadRuntimeModules,
-} from "./run-retrieval-eval.ts";
 import {
   EVAL_ONLY_POLICY_VERSION,
   runHydrationPreflight,
@@ -54,14 +51,14 @@ type SelectedHydrationCase = {
   artifactCase: { finalTop6: RecordedCandidate[] };
 };
 
-type QueryablePayload = {
-  db: {
-    pool: {
-      query(sql: string, parameters?: unknown[]): Promise<{ rows: Array<Record<string, unknown>> }>;
-      end(): Promise<void>;
-    };
-  };
-  destroy(): Promise<void>;
+type HydrationClient = {
+  query(sql: string, parameters?: unknown[]): Promise<{ rows: Array<Record<string, unknown>> }>;
+  release(): void;
+};
+
+type HydrationPool = {
+  connect(): Promise<HydrationClient>;
+  end(): Promise<void>;
 };
 
 export function assertPreviewDatabase(environment: Record<string, string | undefined>): string {
@@ -79,7 +76,7 @@ export function assertPreviewDatabase(environment: Record<string, string | undef
 }
 
 export async function loadHydrationRowsReadOnly(
-  payload: QueryablePayload,
+  pool: HydrationPool,
   candidates: RecordedCandidate[],
 ): Promise<HydratedChunkRow[]> {
   const unique = new Map(candidates.map((candidate) => [
@@ -87,9 +84,12 @@ export async function loadHydrationRowsReadOnly(
     candidate,
   ]));
   const requested = [...unique.values()];
-  await payload.db.pool.query("BEGIN READ ONLY");
+  const client = await pool.connect();
+  let transactionOpen = false;
   try {
-    const result = await payload.db.pool.query(
+    await client.query("BEGIN READ ONLY");
+    transactionOpen = true;
+    const result = await client.query(
       `WITH wanted AS (
          SELECT * FROM unnest($1::text[], $2::text[], $3::text[])
            AS requested(doc_type, doc_id, chunk_key)
@@ -104,7 +104,8 @@ export async function loadHydrationRowsReadOnly(
         requested.map((item) => item.chunkKey),
       ],
     );
-    await payload.db.pool.query("ROLLBACK");
+    await client.query("ROLLBACK");
+    transactionOpen = false;
     return result.rows.map((row) => ({
       docType: String(row.doc_type),
       docId: String(row.doc_id),
@@ -116,23 +117,21 @@ export async function loadHydrationRowsReadOnly(
       contentHash: String(row.content_hash),
     }));
   } catch (error) {
-    await payload.db.pool.query("ROLLBACK").catch(() => undefined);
+    if (transactionOpen) await client.query("ROLLBACK").catch(() => undefined);
     throw error;
+  } finally {
+    client.release();
   }
 }
 
 export async function withHydrationResource<T>(
-  resource: QueryablePayload,
-  operation: (payload: QueryablePayload) => Promise<T>,
+  pool: HydrationPool,
+  operation: (pool: HydrationPool) => Promise<T>,
 ): Promise<T> {
   try {
-    return await operation(resource);
+    return await operation(pool);
   } finally {
-    try {
-      await resource.destroy();
-    } finally {
-      await resource.db.pool.end();
-    }
+    await pool.end();
   }
 }
 
@@ -140,11 +139,10 @@ export async function hydrateSelectedCases(
   selected: SelectedHydrationCase[],
   environment: Record<string, string | undefined>,
 ): Promise<Map<string, HydratedChunkRow[]>> {
-  assertPreviewDatabase(environment);
-  const { getPayload, payloadConfig } = await loadPayloadRuntimeModules();
-  const payload = await getPayload({ config: createEvaluationPayloadConfig(payloadConfig) }) as unknown as QueryablePayload;
+  const databaseUrl = assertPreviewDatabase(environment);
+  const pool = new Pool({ connectionString: databaseUrl, max: 1 }) as unknown as HydrationPool;
   const candidates = selected.flatMap(({ artifactCase }) => artifactCase.finalTop6);
-  const rows = await withHydrationResource(payload, (active) => loadHydrationRowsReadOnly(active, candidates));
+  const rows = await withHydrationResource(pool, (active) => loadHydrationRowsReadOnly(active, candidates));
   const byIdentity = new Map(rows.map((row) => [`${row.docType}\u0000${row.docId}\u0000${row.chunkKey}`, row]));
   return new Map(selected.map(({ datasetCase, artifactCase }) => [
     datasetCase.id,

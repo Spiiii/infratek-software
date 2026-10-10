@@ -434,36 +434,45 @@ test("production pre-calibration policy remains unchanged", () => {
 
 test("read-only hydration uses rollback and resource cleanup on success and error", async () => {
   const queries: string[] = [];
-  let closed = 0;
+  let released = 0;
   let poolsEnded = 0;
-  const resource = {
-    db: {
-      pool: {
+  const pool = {
+    async connect() {
+      return {
         async query(sql: string) {
           queries.push(sql);
           return { rows: sql.startsWith("WITH wanted") ? [] : [] };
         },
-        async end() { poolsEnded += 1; },
-      },
+        release() { released += 1; },
+      };
     },
-    async destroy() { closed += 1; },
+    async end() { poolsEnded += 1; },
   };
-  await withHydrationResource(resource, (payload) => loadHydrationRowsReadOnly(payload, [candidate(1)]));
+  await withHydrationResource(pool, (active) => loadHydrationRowsReadOnly(active, [candidate(1)]));
   assert.match(queries[0], /BEGIN READ ONLY/u);
   assert.match(queries.at(-1) ?? "", /ROLLBACK/u);
   assert.equal(queries.some((sql) => /INSERT|UPDATE|DELETE/iu.test(sql)), false);
-  assert.equal(closed, 1);
+  assert.equal(released, 1);
   assert.equal(poolsEnded, 1);
 
-  let errorClosed = 0;
+  const errorQueries: string[] = [];
+  let errorReleased = 0;
   let errorPoolsEnded = 0;
   await assert.rejects(withHydrationResource({
-    db: { pool: {
-      async query() { throw new Error("synthetic db error"); },
-      async end() { errorPoolsEnded += 1; },
-    } },
-    async destroy() { errorClosed += 1; },
-  }, (payload) => loadHydrationRowsReadOnly(payload, [candidate(1)])), /synthetic db error/u);
-  assert.equal(errorClosed, 1);
+    async connect() {
+      return {
+        async query(sql: string) {
+          errorQueries.push(sql);
+          if (sql.startsWith("WITH wanted")) throw new Error("synthetic db error");
+          return { rows: [] };
+        },
+        release() { errorReleased += 1; },
+      };
+    },
+    async end() { errorPoolsEnded += 1; },
+  }, (active) => loadHydrationRowsReadOnly(active, [candidate(1)])), /synthetic db error/u);
+  assert.match(errorQueries[0], /BEGIN READ ONLY/u);
+  assert.match(errorQueries.at(-1) ?? "", /ROLLBACK/u);
+  assert.equal(errorReleased, 1);
   assert.equal(errorPoolsEnded, 1);
 });
