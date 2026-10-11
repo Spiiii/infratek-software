@@ -28,7 +28,7 @@ const environment = {
   CHAT_MODEL_VERSION: "gemini-3.5-flash-lite-p5.1",
   EMBED_VERSION: "gemini-embedding-2-768-p5.3",
   INGESTION_VERSION: "p5.3-v1",
-  PROMPT_VERSION: "p5.1",
+  PROMPT_VERSION: "p5.2",
   THRESHOLD_VERSION: "UN-CALIBRATED",
 };
 
@@ -54,7 +54,7 @@ function artifact(caseIds: string[], overrides: Record<string, unknown> = {}) {
       model: "gemini-3.5-flash-lite-p5.1",
       embedding: "gemini-embedding-2-768-p5.3",
       ingestion: "p5.3-v1",
-      prompt: "p5.1",
+      prompt: "p5.2",
       threshold: "UN-CALIBRATED",
     },
     cases: caseIds.map((caseId, caseIndex) => ({
@@ -245,7 +245,7 @@ test("invalid artifact mode, version, duplicates, and missing cases abort", asyn
   );
   await assert.rejects(
     runGenerationEvaluation(dataset, artifact(["chat-eval-ans-024"], {
-      versions: { ...artifact([]).versions, prompt: "stale" },
+      versions: { ...artifact([]).versions, prompt: "p5.1" },
     }), options(await output("version")), { environment }),
     /prompt version mismatch/u,
   );

@@ -18,6 +18,7 @@ test("build-safe defaults pin the approved P5.1 models and uncalibrated threshol
   assert.equal(config.model.chat, "gemini-3.5-flash-lite");
   assert.equal(config.model.embedding, "gemini-embedding-2");
   assert.equal(config.model.embeddingDimension, 768);
+  assert.equal(config.versioning.prompt, "p5.2");
   assert.equal(config.versioning.threshold, "UN-CALIBRATED");
   assert.equal(config.limits.outputMaxTokens, 256);
   assert.equal(config.limits.inputTokenBudget, 12_000);
@@ -96,6 +97,10 @@ test("normalizes only after redaction and does not hash", () => {
 
 test("system prompt preserves all safety and grounding invariants", () => {
   const prompt = buildChatSystemPrompt("[S1] Nội dung đã kiểm chứng");
+  const previousCitationInstruction =
+    "Mọi khẳng định thực tế phải có trích dẫn dạng [S1], [S2] tương ứng với nguồn trong CONTEXT.";
+  const exactCitationInstruction =
+    "Mọi khẳng định thực tế phải có trích dẫn; chỉ dùng đúng nhãn nguồn xuất hiện trong CONTEXT, giữ nguyên chữ hoa và cú pháp ngoặc vuông (ví dụ: [S1], [S2]); không tự tạo nhãn.";
   const required = [
     NO_INFORMATION_FALLBACK,
     "[S1]",
@@ -107,9 +112,11 @@ test("system prompt preserves all safety and grounding invariants", () => {
     "tối đa 150 từ",
     "<CONTEXT_DATA>",
     "</CONTEXT_DATA>",
+    exactCitationInstruction,
   ];
 
   for (const invariant of required) assert.ok(prompt.includes(invariant), invariant);
+  assert.equal(prompt.includes(previousCitationInstruction), false);
 });
 
 test("P5.2 migration source preserves the database contract", async () => {
