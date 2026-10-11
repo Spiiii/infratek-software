@@ -91,8 +91,11 @@ Ngân sách dự kiến cho live full dataset: tối đa **120 Gemini embedding 
 Lệnh live hợp lệ bên dưới **CHƯA CHẠY**. Nó lấy đúng 120 ID đã validate, yêu cầu explicit authorization, pacing 1000ms, cap 120 embedding/240 logical reads và output ngoài repo:
 
 ```powershell
-$dataset = Get-Content .\evals\chat.yml -Raw | ConvertFrom-Json
-$caseArgs = foreach ($case in $dataset.cases) { '--case-id'; $case.id }
+$caseIds = @(node --experimental-strip-types --input-type=module -e "import { loadAndValidateChatDataset } from './evals/validate-chat-dataset.ts'; const dataset = await loadAndValidateChatDataset(); for (const item of dataset.cases) console.log(item.id);")
+if ($LASTEXITCODE -ne 0 -or $caseIds.Count -ne 120 -or @($caseIds | Sort-Object -Unique).Count -ne 120) {
+  throw 'Dataset must contain exactly 120 unique validated case IDs.'
+}
+$caseArgs = foreach ($caseId in $caseIds) { '--case-id'; $caseId }
 npm run eval:chat:retrieval -- --live --authorize-full-dataset --run-id p57-beta-p52-retrieval-120 --max-cases 120 --max-embedding-calls 120 --max-logical-read-searches 240 --request-delay-ms 1000 --output-dir "$env:TEMP\infratek-p5.7e\p57-beta-p52-retrieval-120" @caseArgs
 ```
 
