@@ -19,7 +19,7 @@ const environment = {
   EMBED_DIMENSION: "768",
   EMBED_VERSION: "gemini-embedding-2-768-p5.3",
   INGESTION_VERSION: "p5.3-v1",
-  PROMPT_VERSION: "p5.2",
+  PROMPT_VERSION: "p5.3",
   THRESHOLD_VERSION: "UN-CALIBRATED",
 };
 

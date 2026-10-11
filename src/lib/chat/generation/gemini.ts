@@ -1,9 +1,57 @@
 import { readChatBuildSafeConfig, readChatRuntimeSecrets } from "../config.ts";
+import { z } from "zod";
 import type {
   ChatGenerationAdapter,
   ChatGenerationResult,
   GeminiGenerateContent,
 } from "./types.ts";
+
+export const CHAT_GENERATION_RESPONSE_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["status", "answer", "citations"],
+  properties: {
+    status: { type: "string", enum: ["ANSWER", "NO_CONTEXT"] },
+    answer: { type: "string" },
+    citations: {
+      type: "array",
+      items: { type: "string", enum: ["S1", "S2", "S3", "S4", "S5", "S6"] },
+      maxItems: 6,
+    },
+  },
+} as const;
+
+const structuredOutputSchema = z.object({
+  status: z.enum(["ANSWER", "NO_CONTEXT"]),
+  answer: z.string(),
+  citations: z.array(z.enum(["S1", "S2", "S3", "S4", "S5", "S6"])).max(6),
+}).strict().superRefine((value, context) => {
+  if (value.status === "ANSWER") {
+    if (!value.answer.trim()) {
+      context.addIssue({ code: "custom", message: "ANSWER requires content", path: ["answer"] });
+    }
+    if (value.citations.length === 0) {
+      context.addIssue({ code: "custom", message: "ANSWER requires citations", path: ["citations"] });
+    }
+    if (new Set(value.citations).size !== value.citations.length) {
+      context.addIssue({ code: "custom", message: "Citations must be unique", path: ["citations"] });
+    }
+  } else if (value.answer !== "" || value.citations.length !== 0) {
+    context.addIssue({ code: "custom", message: "NO_CONTEXT requires an empty answer and citations" });
+  }
+});
+
+function parseStructuredOutput(text: string | undefined): ChatGenerationResult {
+  if (!text?.trim()) return { state: "FAILURE", reason: "INVALID_PROVIDER_RESPONSE" };
+  try {
+    const parsed = structuredOutputSchema.safeParse(JSON.parse(text));
+    return parsed.success
+      ? { state: "SUCCESS", output: parsed.data }
+      : { state: "FAILURE", reason: "INVALID_PROVIDER_RESPONSE" };
+  } catch {
+    return { state: "FAILURE", reason: "INVALID_PROVIDER_RESPONSE" };
+  }
+}
 
 class GenerationTimeoutError extends Error {
   constructor() {
@@ -59,6 +107,8 @@ export function createGeminiChatAdapter(options: {
             config: {
               systemInstruction: input.systemPrompt,
               maxOutputTokens: options.maxOutputTokens,
+              responseMimeType: "application/json",
+              responseJsonSchema: CHAT_GENERATION_RESPONSE_SCHEMA,
               abortSignal: controller.signal,
             },
           }),
@@ -69,10 +119,7 @@ export function createGeminiChatAdapter(options: {
             }, options.timeoutMs);
           }),
         ]);
-        const text = response.text?.trim();
-        return text
-          ? { state: "SUCCESS", text }
-          : { state: "FAILURE", reason: "INVALID_PROVIDER_RESPONSE" };
+        return parseStructuredOutput(response.text);
       } catch (error) {
         return failure(error);
       } finally {

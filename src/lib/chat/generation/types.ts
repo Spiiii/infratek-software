@@ -1,4 +1,5 @@
 import type { GenerateContentParameters, GenerateContentResponse } from "@google/genai";
+import type { SourceLabel } from "../retrieval/types.ts";
 
 export type GeminiGenerateContent = (
   parameters: GenerateContentParameters,
@@ -9,6 +10,12 @@ export type ChatGenerationInput = {
   question: string;
 };
 
+export type StructuredGenerationOutput = {
+  status: "ANSWER" | "NO_CONTEXT";
+  answer: string;
+  citations: SourceLabel[];
+};
+
 export type ChatGenerationFailure =
   | "PROVIDER_RATE_LIMITED"
   | "PROVIDER_UNAVAILABLE"
@@ -16,7 +23,7 @@ export type ChatGenerationFailure =
   | "INVALID_PROVIDER_RESPONSE";
 
 export type ChatGenerationResult =
-  | { state: "SUCCESS"; text: string }
+  | { state: "SUCCESS"; output: StructuredGenerationOutput }
   | { state: "FAILURE"; reason: ChatGenerationFailure };
 
 export interface ChatGenerationAdapter {

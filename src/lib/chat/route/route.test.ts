@@ -6,6 +6,7 @@ import type { AnswerDecision, RelevanceDecisionPolicy } from "../decision/types.
 import { NO_INFORMATION_FALLBACK } from "../prompt.ts";
 import type { RetrievalResult, SelectedSource } from "../retrieval/types.ts";
 import type { ChatSecurityResult, SessionCookieContract } from "../security/types.ts";
+import type { StructuredGenerationOutput } from "../generation/types.ts";
 import { createChatPostHandler, type ChatRouteDependencies } from "./orchestrator.ts";
 
 const source: SelectedSource = {
@@ -55,7 +56,7 @@ function fixture(options: {
   security?: ChatSecurityResult;
   retrieval?: RetrievalResult;
   policy?: RelevanceDecisionPolicy;
-  generated?: string | "FAILURE";
+  generated?: StructuredGenerationOutput | "FAILURE";
   active?: "FOUND" | "NOT_FOUND" | "FAILURE";
   conversationFailure?: boolean;
   unansweredFailure?: boolean;
@@ -111,7 +112,14 @@ function fixture(options: {
         counters.generation += 1;
         return options.generated === "FAILURE"
           ? { state: "FAILURE", reason: "PROVIDER_UNAVAILABLE" }
-          : { state: "SUCCESS", text: options.generated ?? "Infratek cung cấp tư vấn AI [S1]" };
+          : {
+              state: "SUCCESS",
+              output: options.generated ?? {
+                status: "ANSWER",
+                answer: "Infratek cung cấp tư vấn AI.",
+                citations: ["S1"],
+              },
+            };
       },
     },
     unanswered: {
@@ -252,7 +260,7 @@ test("injected calibrated policy produces one grounded ANSWER with server-owned 
 });
 
 test("unsupported output is fully rejected and persists only user-side review event", async () => {
-  const f = fixture({ retrieval: retrieval("CANDIDATES"), policy: calibratedPolicy, generated: "Cam kết ROI 999% [S1]" });
+  const f = fixture({ retrieval: retrieval("CANDIDATES"), policy: calibratedPolicy, generated: { status: "ANSWER", answer: "Cam kết ROI 999%", citations: ["S1"] } });
   const value = await body(await f.handler(request({ question: "ROI?" })));
   assert.equal(value.status, "SAFE_FALLBACK");
   assert.equal(JSON.stringify(value).includes("999"), false);
@@ -260,12 +268,12 @@ test("unsupported output is fully rejected and persists only user-side review ev
   assert.equal(f.persisted[0].assistantMessage, undefined);
   assert.ok(Array.isArray(f.persisted[0].unsupportedCategories));
 
-  const failed = fixture({ retrieval: retrieval("CANDIDATES"), policy: calibratedPolicy, generated: "Cam kết ROI 999% [S1]", conversationFailure: true });
+  const failed = fixture({ retrieval: retrieval("CANDIDATES"), policy: calibratedPolicy, generated: { status: "ANSWER", answer: "Cam kết ROI 999%", citations: ["S1"] }, conversationFailure: true });
   assert.equal((await body(await failed.handler(request({ question: "ROI?" })))).status, "DEPENDENCY_FALLBACK");
 });
 
 test("NO_ANSWER persists deterministic fallback and records unanswered", async () => {
-  const f = fixture({ retrieval: retrieval("CANDIDATES"), policy: calibratedPolicy, generated: NO_INFORMATION_FALLBACK });
+  const f = fixture({ retrieval: retrieval("CANDIDATES"), policy: calibratedPolicy, generated: { status: "NO_CONTEXT", answer: "", citations: [] } });
   const value = await body(await f.handler(request({ question: "Không rõ?" })));
   assert.equal(value.status, "NO_CONTEXT");
   assert.notEqual(f.persisted[0].assistantMessage, NO_INFORMATION_FALLBACK);
@@ -273,7 +281,11 @@ test("NO_ANSWER persists deterministic fallback and records unanswered", async (
 });
 
 test("provider/citation failure returns dependency fallback without persistence or unanswered", async () => {
-  for (const generated of ["FAILURE", "Câu trả lời không citation"] as const) {
+  const failures: Array<StructuredGenerationOutput | "FAILURE"> = [
+    "FAILURE",
+    { status: "ANSWER", answer: "Citation giả [S1]", citations: ["S1"] },
+  ];
+  for (const generated of failures) {
     const f = fixture({ retrieval: retrieval("CANDIDATES"), policy: calibratedPolicy, generated });
     assert.equal((await body(await f.handler(request({ question: "q" })))).status, "DEPENDENCY_FALLBACK");
     assert.equal(f.counters.conversation + f.counters.unanswered, 0);

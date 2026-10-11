@@ -121,10 +121,32 @@ export async function generateGroundedAnswer(options: {
     };
   }
 
-  const validation = validateGeneratedCitations(generation.text, context.labels);
-  if (validation.state === "VALID_NO_ANSWER") {
+  if (generation.output.status === "NO_CONTEXT") {
     return { state: "NO_ANSWER", policyVersion: decision.policyVersion };
   }
+
+  const answer = generation.output.answer.trim();
+  const suppliedLabels = new Set(context.labels);
+  const requestedLabels = generation.output.citations;
+  if (requestedLabels.some((label) => !suppliedLabels.has(label))) {
+    return {
+      state: "DEPENDENCY_FALLBACK",
+      reason: "INVALID_GROUNDED_OUTPUT",
+      groundingReason: "CITATION_MISMATCH",
+      policyVersion: decision.policyVersion,
+    };
+  }
+  if (/\[\s*[sS]\s*\d+\s*\]|\b[sS]\s*\d+\b/u.test(answer)) {
+    return {
+      state: "DEPENDENCY_FALLBACK",
+      reason: "INVALID_GROUNDED_OUTPUT",
+      groundingReason: "MALFORMED_CITATION",
+      policyVersion: decision.policyVersion,
+    };
+  }
+
+  const renderedAnswer = `${answer} ${requestedLabels.map((label) => `[${label}]`).join(" ")}`.trim();
+  const validation = validateGeneratedCitations(renderedAnswer, context.labels);
   if (validation.state === "INVALID") {
     return {
       state: "DEPENDENCY_FALLBACK",
@@ -133,9 +155,12 @@ export async function generateGroundedAnswer(options: {
       policyVersion: decision.policyVersion,
     };
   }
+  if (validation.state === "VALID_NO_ANSWER") {
+    return { state: "NO_ANSWER", policyVersion: decision.policyVersion };
+  }
 
   const outputSafety = validateProtectedOutput(
-    generation.text,
+    renderedAnswer,
     context.sources.map(({ source }) => source.content).join("\n"),
   );
   if (outputSafety.state === "SAFE_FALLBACK") {
@@ -150,7 +175,7 @@ export async function generateGroundedAnswer(options: {
 
   return {
     state: "ANSWER",
-    answer: generation.text,
+    answer: renderedAnswer,
     sources: mapCitedPublicSources(context.sources, validation.citedLabels),
     policyVersion: decision.policyVersion,
   };
