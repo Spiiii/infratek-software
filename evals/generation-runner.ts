@@ -97,6 +97,7 @@ export type GenerationRunnerOptions = {
   caseIds: string[];
   maxCases: number;
   maxGenerationCalls?: number;
+  allowP52RetrievalForP53Generation?: boolean;
   timestamp?: string;
 };
 
@@ -137,6 +138,7 @@ export type GenerationEvidence = {
   runTimestamp: string;
   datasetVersion: string;
   sourceRetrievalRunIds: string[];
+  sourceRetrievalVersions: RetrievalArtifact["versions"][];
   mode: "DRY_RUN" | "LIVE";
   configuration: {
     maximumCases: number;
@@ -256,6 +258,7 @@ export function parseAndValidateRetrievalArtifact(
   raw: unknown,
   dataset: ChatEvalDataset,
   environment: Record<string, string | undefined>,
+  allowP52RetrievalForP53Generation = false,
 ): RetrievalArtifact {
   const artifact = retrievalArtifactSchema.parse(raw);
   const config = readChatBuildSafeConfig(environment);
@@ -267,8 +270,18 @@ export function parseAndValidateRetrievalArtifact(
     prompt: config.versioning.prompt,
     threshold: config.versioning.threshold,
   };
+  const usesVerifiedPromptCompatibility = allowP52RetrievalForP53Generation &&
+    artifact.versions.prompt === "p5.2" &&
+    expected.prompt === "p5.3";
   for (const key of Object.keys(expected) as Array<keyof typeof expected>) {
-    if (artifact.versions[key] !== expected[key]) throw new Error(`Retrieval artifact ${key} version mismatch`);
+    if (artifact.versions[key] === expected[key]) continue;
+    const isVerifiedPromptCompatibility = key === "prompt" && usesVerifiedPromptCompatibility;
+    if (!isVerifiedPromptCompatibility) {
+      throw new Error(`Retrieval artifact ${key} version mismatch`);
+    }
+  }
+  if (usesVerifiedPromptCompatibility && artifact.runStatus !== "COMPLETED") {
+    throw new Error("Compatible p5.2 retrieval artifact must explicitly be COMPLETED");
   }
   const ids = artifact.cases.map((item) => item.caseId);
   if (new Set(ids).size !== ids.length) throw new Error("Duplicate case ID in retrieval artifact");
@@ -279,9 +292,15 @@ function parseRetrievalArtifacts(
   raw: unknown | unknown[],
   dataset: ChatEvalDataset,
   environment: Record<string, string | undefined>,
+  allowP52RetrievalForP53Generation = false,
 ): RetrievalArtifact[] {
   const artifacts = (Array.isArray(raw) ? raw : [raw])
-    .map((item) => parseAndValidateRetrievalArtifact(item, dataset, environment));
+    .map((item) => parseAndValidateRetrievalArtifact(
+      item,
+      dataset,
+      environment,
+      allowP52RetrievalForP53Generation,
+    ));
   if (artifacts.length === 0) throw new Error("At least one retrieval artifact is required");
   const runIds = artifacts.map((item) => item.runId);
   if (new Set(runIds).size !== runIds.length) throw new Error("Duplicate retrieval artifact run ID");
@@ -414,7 +433,12 @@ export async function runGenerationEvaluation(
 ): Promise<{ evidence: GenerationEvidence; artifactPath: string }> {
   validateGenerationRunnerOptions(options);
   const environment = dependencies.environment ?? process.env;
-  const artifacts = parseRetrievalArtifacts(rawArtifacts, dataset, environment);
+  const artifacts = parseRetrievalArtifacts(
+    rawArtifacts,
+    dataset,
+    environment,
+    options.allowP52RetrievalForP53Generation,
+  );
   const selected = selectCases(dataset, artifacts, options);
   const outputDirectory = assertSafeGenerationOutputDirectory(options.outputDirectory, options.repositoryRoot);
   const generationBudget = options.maxGenerationCalls ?? 0;
@@ -501,6 +525,7 @@ export async function runGenerationEvaluation(
     runTimestamp: options.timestamp ?? new Date().toISOString(),
     datasetVersion: dataset.datasetVersion,
     sourceRetrievalRunIds: artifacts.map((artifact) => artifact.runId),
+    sourceRetrievalVersions: artifacts.map((artifact) => ({ ...artifact.versions })),
     mode: options.live ? "LIVE" : "DRY_RUN",
     configuration: {
       maximumCases: options.maxCases,
@@ -511,7 +536,13 @@ export async function runGenerationEvaluation(
       automaticProviderRetries: 0,
       policyVersion: EVAL_ONLY_POLICY_VERSION,
     },
-    versions: artifacts[0]!.versions,
+    versions: {
+      model: readChatBuildSafeConfig(environment).versioning.chatModel,
+      embedding: readChatBuildSafeConfig(environment).versioning.embedding,
+      ingestion: readChatBuildSafeConfig(environment).versioning.ingestion,
+      prompt: readChatBuildSafeConfig(environment).versioning.prompt,
+      threshold: readChatBuildSafeConfig(environment).versioning.threshold,
+    },
     cases,
   };
   parseGenerationEvidence(evidence);
@@ -537,7 +568,12 @@ export async function runHydrationPreflight(
   }
   validateGenerationRunnerOptions(options);
   const environment = dependencies.environment ?? process.env;
-  const artifacts = parseRetrievalArtifacts(rawArtifacts, dataset, environment);
+  const artifacts = parseRetrievalArtifacts(
+    rawArtifacts,
+    dataset,
+    environment,
+    options.allowP52RetrievalForP53Generation,
+  );
   const selected = selectCases(dataset, artifacts, options);
   const artifactRunIds = artifacts.map((artifact) => artifact.runId);
   if (

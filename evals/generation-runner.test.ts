@@ -18,6 +18,7 @@ import {
   type HydratedChunkRow,
 } from "./generation-runner.ts";
 import {
+  assertRetrievalArtifactIntegrity,
   assertPreviewDatabase,
   loadHydrationRowsReadOnly,
   withHydrationResource,
@@ -268,6 +269,115 @@ test("invalid artifact mode, version, duplicates, and missing cases abort", asyn
       { environment },
     ),
     /Duplicate case ID across retrieval artifacts/u,
+  );
+});
+
+test("verified p5.2 retrieval evidence is accepted only through explicit p5.3 opt-in", async () => {
+  const dataset = await loadAndValidateChatDataset();
+  const p52 = artifact(["chat-eval-lang-006"], {
+    runStatus: "COMPLETED",
+    versions: { ...artifact([]).versions, prompt: "p5.2" },
+  });
+  const directory = await output("p52-compatible");
+  const compatibleOptions = { caseIds: ["chat-eval-lang-006"] };
+
+  await assert.rejects(
+    runGenerationEvaluation(dataset, p52, options(directory, compatibleOptions), { environment }),
+    /prompt version mismatch/u,
+  );
+
+  const result = await runGenerationEvaluation(
+    dataset,
+    p52,
+    options(directory, {
+      ...compatibleOptions,
+      allowP52RetrievalForP53Generation: true,
+    }),
+    { environment },
+  );
+  assert.equal(result.evidence.versions.prompt, "p5.3");
+  assert.equal(result.evidence.sourceRetrievalVersions[0]?.prompt, "p5.2");
+  assert.equal(result.evidence.cases[0]?.sourceArtifactRunId, "synthetic-retrieval-run");
+});
+
+test("p5.2 compatibility opt-in rejects every other version mismatch", async () => {
+  const dataset = await loadAndValidateChatDataset();
+  const mismatches = [
+    { prompt: "p5.1" },
+    { prompt: "p5.2", embedding: "different-embedding" },
+    { prompt: "p5.2", ingestion: "different-ingestion" },
+    { prompt: "p5.2", model: "different-model" },
+  ];
+  for (const versions of mismatches) {
+    await assert.rejects(
+      runGenerationEvaluation(
+        dataset,
+        artifact(["chat-eval-lang-006"], {
+          versions: { ...artifact([]).versions, ...versions },
+        }),
+        options(await output(`mismatch-${Object.keys(versions).join("-")}`), {
+          allowP52RetrievalForP53Generation: true,
+        }),
+        { environment },
+      ),
+      /version mismatch/u,
+    );
+  }
+});
+
+test("retrieval artifact SHA-256 opt-in guard rejects missing and tampered artifacts", () => {
+  const expected = "a".repeat(64);
+  assert.doesNotThrow(() => assertRetrievalArtifactIntegrity([{ sha256: expected }], [expected]));
+  assert.throws(() => assertRetrievalArtifactIntegrity([{ sha256: expected }], []), /one SHA-256/u);
+  assert.throws(
+    () => assertRetrievalArtifactIntegrity([{ sha256: "b".repeat(64) }], [expected]),
+    /SHA-256 mismatch/u,
+  );
+  assert.throws(
+    () => assertRetrievalArtifactIntegrity([{ sha256: expected }], ["not-a-hash"]),
+    /SHA-256 is invalid/u,
+  );
+});
+
+test("compatible p5.2 evidence cannot bypass hydration identity and hash guards", async () => {
+  const dataset = await loadAndValidateChatDataset();
+  const p52 = artifact(["chat-eval-lang-006"], {
+    runStatus: "COMPLETED",
+    versions: { ...artifact([]).versions, prompt: "p5.2" },
+  });
+  await assert.rejects(
+    runHydrationPreflight(
+      dataset,
+      p52,
+      options(await output("p52-hydration-tampered"), {
+        caseIds: ["chat-eval-lang-006"],
+        allowP52RetrievalForP53Generation: true,
+      }),
+      {
+        environment,
+        sourceArtifactIntegrity: [{ runId: "synthetic-retrieval-run", sha256: "a".repeat(64), bytes: 100 }],
+        hydrateCases: async () => new Map([["chat-eval-lang-006", [row(1, { contentHash: "tampered" }), row(11)]]]),
+      },
+    ),
+    /content hash mismatch/u,
+  );
+});
+
+test("p5.2 compatibility requires an explicit COMPLETED artifact", async () => {
+  const dataset = await loadAndValidateChatDataset();
+  await assert.rejects(
+    runGenerationEvaluation(
+      dataset,
+      artifact(["chat-eval-lang-006"], {
+        versions: { ...artifact([]).versions, prompt: "p5.2" },
+      }),
+      options(await output("p52-incomplete"), {
+        caseIds: ["chat-eval-lang-006"],
+        allowP52RetrievalForP53Generation: true,
+      }),
+      { environment },
+    ),
+    /must explicitly be COMPLETED/u,
   );
 });
 

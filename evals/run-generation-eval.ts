@@ -177,12 +177,33 @@ export function createGenerationExecutor(environment: Record<string, string | un
   };
 }
 
+export function assertRetrievalArtifactIntegrity(
+  actual: Array<{ sha256: string }>,
+  expectedSha256: string[],
+): void {
+  if (actual.length !== expectedSha256.length || actual.length === 0) {
+    throw new Error("Expected one SHA-256 value for every retrieval artifact");
+  }
+  actual.forEach((item, index) => {
+    const expected = expectedSha256[index]?.trim().toLowerCase();
+    if (!expected || !/^[a-f0-9]{64}$/u.test(expected)) {
+      throw new Error("Expected retrieval artifact SHA-256 is invalid");
+    }
+    if (item.sha256.toLowerCase() !== expected) {
+      throw new Error("Retrieval artifact SHA-256 mismatch");
+    }
+  });
+}
+
 export async function main(): Promise<void> {
   const repositoryRoot = process.cwd();
   nextEnv.loadEnvConfig(repositoryRoot);
   const runId = required("--run-id");
   const live = process.argv.includes("--live");
   const hydrateOnly = process.argv.includes("--hydrate-only");
+  const allowP52RetrievalForP53Generation = process.argv.includes(
+    "--allow-p52-retrieval-for-p53-generation",
+  );
   if (live && hydrateOnly) throw new Error("--live and --hydrate-only are mutually exclusive");
   const caseIds = values("--case-id").map((item) => item.trim()).filter(Boolean);
   const maxCases = positiveInteger("--max-cases");
@@ -210,6 +231,15 @@ export async function main(): Promise<void> {
     };
   }));
   const rawArtifacts = artifactFiles.map((item) => item.raw);
+  const expectedRetrievalHashes = values("--expected-retrieval-sha256");
+  if (allowP52RetrievalForP53Generation) {
+    assertRetrievalArtifactIntegrity(
+      artifactFiles.map((item) => item.integrity),
+      expectedRetrievalHashes,
+    );
+  } else if (expectedRetrievalHashes.length > 0) {
+    throw new Error("--expected-retrieval-sha256 requires the explicit p5.2-to-p5.3 opt-in");
+  }
   const dataset = await loadAndValidateChatDataset();
   const options: GenerationRunnerOptions = {
     runId,
@@ -219,6 +249,7 @@ export async function main(): Promise<void> {
     caseIds,
     maxCases,
     maxGenerationCalls,
+    allowP52RetrievalForP53Generation,
   };
   validateGenerationRunnerOptions(options);
   if (hydrateOnly) {
