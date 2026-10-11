@@ -10,6 +10,7 @@ import { contentHash } from "../src/lib/chat/ingestion/hash.ts";
 import type { RetrievalResult } from "../src/lib/chat/retrieval/types.ts";
 import {
   hydrateRecordedSources,
+  parseGenerationEvidence,
   runHydrationPreflight,
   runGenerationEvaluation,
   validateGenerationRunnerOptions,
@@ -373,6 +374,70 @@ test("provider failure stops the batch without retry and records no raw error", 
   assert.equal(JSON.stringify(result.evidence).includes("secret provider body"), false);
 });
 
+test("sanitized grounding reasons persist while historical evidence remains compatible", async () => {
+  const dataset = await loadAndValidateChatDataset();
+  const caseIds = ["chat-eval-lang-006"];
+  const reasons = [
+    "MISSING_CITATION",
+    "CITATION_MISMATCH",
+    "MALFORMED_CITATION",
+    "INVALID_OUTPUT",
+  ] as const;
+  let calls = 0;
+
+  for (const groundingReason of reasons) {
+    const result = await runGenerationEvaluation(
+      dataset,
+      artifact(caseIds),
+      options(await output(`grounding-${groundingReason.toLowerCase()}`), {
+        live: true,
+        caseIds,
+        maxCases: 1,
+        maxGenerationCalls: 1,
+      }),
+      {
+        environment,
+        hydrateCases: async () => rowsFor(caseIds),
+        executeGeneration: async () => {
+          calls += 1;
+          return {
+            result: {
+              state: "DEPENDENCY_FALLBACK",
+              reason: "INVALID_GROUNDED_OUTPUT",
+              groundingReason,
+              policyVersion: "eval-only",
+            },
+            physicalCalls: 1,
+            sanitizedOutput: null,
+          };
+        },
+      },
+    );
+    assert.equal(result.evidence.cases[0].groundingReason, groundingReason);
+    assert.equal("sanitizedModelOutput" in result.evidence.cases[0], false);
+    const serialized = JSON.parse(await readFile(result.artifactPath, "utf8")) as unknown;
+    assert.equal(parseGenerationEvidence(serialized).cases[0].groundingReason, groundingReason);
+  }
+
+  assert.equal(calls, 4);
+
+  const historical = {
+    kind: "P5.7-E_GENERATION_EVIDENCE",
+    runId: "historical-e4-b3",
+    cases: [{ caseId: "chat-eval-lang-006", errorCategory: "INVALID_GROUNDED_OUTPUT" }],
+  };
+  const parsedHistorical = parseGenerationEvidence(historical);
+  assert.equal("groundingReason" in parsedHistorical.cases[0], false);
+  assert.throws(
+    () => parseGenerationEvidence({
+      ...historical,
+      cases: [{ ...historical.cases[0], groundingReason: "RAW_PROVIDER_ERROR" }],
+    }),
+    /Invalid enum value/u,
+  );
+  assert.equal(JSON.stringify(parsedHistorical).includes("raw rejected output"), false);
+});
+
 test("protected-output safe fallback records categories without unsafe model text", async () => {
   const dataset = await loadAndValidateChatDataset();
   const caseIds = ["chat-eval-ans-024"];
@@ -406,6 +471,7 @@ test("protected-output safe fallback records categories without unsafe model tex
     unsupported: true,
     categories: ["UNSUPPORTED_NUMBER"],
   });
+  assert.equal("groundingReason" in result.evidence.cases[0], false);
   assert.equal("sanitizedModelOutput" in result.evidence.cases[0], false);
 });
 

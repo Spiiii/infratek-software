@@ -4,7 +4,10 @@ import { isAbsolute, relative, resolve } from "node:path";
 import { z } from "zod";
 
 import { readChatBuildSafeConfig } from "../src/lib/chat/config.ts";
-import { validateGeneratedCitations } from "../src/lib/chat/grounding/citations.ts";
+import {
+  validateGeneratedCitations,
+  type CitationInvalidReason,
+} from "../src/lib/chat/grounding/citations.ts";
 import { contentHash } from "../src/lib/chat/ingestion/hash.ts";
 import type { SelectedSource, SourceLabel } from "../src/lib/chat/retrieval/types.ts";
 import type { GroundedAnswerResult } from "../src/lib/chat/service/grounded-answer.ts";
@@ -58,6 +61,12 @@ export type HydratedChunkRow = {
 
 const reviewStateSchema = z.enum(["PASS", "FAIL", "NOT_EVALUATED"]);
 const semanticSupportSchema = z.enum(["SUPPORTED", "PARTIAL", "UNSUPPORTED", "NOT_EVALUATED"]);
+export const groundingReasonSchema = z.enum([
+  "MISSING_CITATION",
+  "CITATION_MISMATCH",
+  "MALFORMED_CITATION",
+  "INVALID_OUTPUT",
+]);
 
 export const generationReviewRecordSchema = z.object({
   answerCorrectness: reviewStateSchema,
@@ -116,6 +125,7 @@ export type GenerationCaseEvidence = {
   physicalGenerationCalls: number;
   generationLatencyMs?: number;
   errorCategory?: string;
+  groundingReason?: CitationInvalidReason;
   review: GenerationReviewRecord;
 };
 
@@ -138,6 +148,19 @@ export type GenerationEvidence = {
   versions: RetrievalArtifact["versions"];
   cases: GenerationCaseEvidence[];
 };
+
+export const generationEvidenceSchema = z.object({
+  kind: z.literal("P5.7-E_GENERATION_EVIDENCE"),
+  runId: z.string().trim().min(1),
+  cases: z.array(z.object({
+    caseId: z.string().trim().min(1),
+    groundingReason: groundingReasonSchema.optional(),
+  }).passthrough()),
+}).passthrough();
+
+export function parseGenerationEvidence(raw: unknown): GenerationEvidence {
+  return generationEvidenceSchema.parse(raw) as GenerationEvidence;
+}
 
 export type SourceArtifactIntegrity = {
   runId: string;
@@ -367,6 +390,12 @@ function resultError(result: GroundedAnswerResult): string | undefined {
   return undefined;
 }
 
+function sanitizedGroundingReason(result: GroundedAnswerResult): CitationInvalidReason | undefined {
+  return result.state === "DEPENDENCY_FALLBACK" && result.reason === "INVALID_GROUNDED_OUTPUT"
+    ? result.groundingReason
+    : undefined;
+}
+
 export async function runGenerationEvaluation(
   dataset: ChatEvalDataset,
   rawArtifacts: unknown | unknown[],
@@ -442,6 +471,7 @@ export async function runGenerationEvaluation(
             }
           : undefined;
       const errorCategory = resultError(execution.result);
+      const groundingReason = sanitizedGroundingReason(execution.result);
       cases.push({
         caseId: datasetCase.id,
         expectedDecision: datasetCase.expectedDecision,
@@ -456,6 +486,7 @@ export async function runGenerationEvaluation(
         physicalGenerationCalls: execution.physicalCalls,
         generationLatencyMs: latencyMs,
         ...(errorCategory ? { errorCategory } : {}),
+        ...(groundingReason ? { groundingReason } : {}),
         review: emptyReview(datasetCase),
       });
       if (errorCategory) break;
@@ -481,6 +512,7 @@ export async function runGenerationEvaluation(
     versions: artifacts[0]!.versions,
     cases,
   };
+  parseGenerationEvidence(evidence);
   await mkdir(outputDirectory, { recursive: false });
   const artifactPath = resolve(outputDirectory, GENERATION_EVIDENCE_FILENAME);
   await writeFile(artifactPath, `${JSON.stringify(evidence, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
