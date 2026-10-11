@@ -6,7 +6,12 @@ import test from "node:test";
 
 import { FINAL_SOURCE_LIMIT, FTS_CANDIDATE_LIMIT, RRF_K, VECTOR_CANDIDATE_LIMIT } from "../src/lib/chat/retrieval/config.ts";
 import type { FtsCandidate, RetrievalResult, VectorCandidate } from "../src/lib/chat/retrieval/types.ts";
-import { runRetrievalEvaluation, validateRetrievalRunnerOptions } from "./retrieval-runner.ts";
+import {
+  FULL_DATASET_CASES,
+  FULL_DATASET_MAX_LOGICAL_READS,
+  runRetrievalEvaluation,
+  validateRetrievalRunnerOptions,
+} from "./retrieval-runner.ts";
 import { loadAndValidateChatDataset } from "./validate-chat-dataset.ts";
 
 const environment = {
@@ -30,6 +35,8 @@ function options(outputDirectory: string, overrides = {}) {
     live: false,
     caseIds: [] as string[],
     maxCases: 2,
+    requestDelayMs: 0,
+    fullDatasetAuthorized: false,
     timestamp: "2026-10-09T00:00:00.000Z",
     ...overrides,
   };
@@ -103,7 +110,19 @@ test("live mode requires explicit IDs, case limit, and embedding budget", async 
   assert.throws(() => validateRetrievalRunnerOptions(options(directory, { live: true })), /explicit case IDs/u);
   assert.throws(() => validateRetrievalRunnerOptions(options(directory, { live: true, caseIds: ["chat-eval-ans-001"] })), /embedding call budget/u);
   assert.throws(() => validateRetrievalRunnerOptions(options(directory, { live: true, caseIds: ["chat-eval-ans-001"], maxCases: 2, maxEmbeddingCalls: 1 })), /cannot exceed/u);
-  assert.throws(() => validateRetrievalRunnerOptions(options(directory, { live: true, caseIds: Array.from({ length: 120 }, (_, index) => `case-${index}`), maxCases: 120, maxEmbeddingCalls: 120 })), /full 120-case/u);
+  const fullIds = Array.from({ length: FULL_DATASET_CASES }, (_, index) => `case-${index}`);
+  assert.throws(() => validateRetrievalRunnerOptions(options(directory, {
+    live: true, caseIds: fullIds, maxCases: 120, maxEmbeddingCalls: 120,
+    maxLogicalReadSearches: 240, requestDelayMs: 1000,
+  })), /explicit authorization/u);
+  assert.doesNotThrow(() => validateRetrievalRunnerOptions(options(directory, {
+    live: true, caseIds: fullIds, maxCases: 120, maxEmbeddingCalls: 120,
+    maxLogicalReadSearches: 240, requestDelayMs: 1000, fullDatasetAuthorized: true,
+  })));
+  assert.throws(() => validateRetrievalRunnerOptions(options(directory, {
+    live: true, caseIds: fullIds, maxCases: 120, maxEmbeddingCalls: 120,
+    maxLogicalReadSearches: 240, requestDelayMs: 999, fullDatasetAuthorized: true,
+  })), /1000ms pacing/u);
 });
 
 test("live synthetic execution records diagnostics and enforces one call per case", async () => {
@@ -120,13 +139,15 @@ test("live synthetic execution records diagnostics and enforces one call per cas
     now: (() => { let time = 0; return () => time += 5; })(),
     executeCase: async () => {
       calls += 1;
-      return { result: result(), vectorCandidates: [vector(1)], ftsCandidates: [fts(1)] };
+      return { result: result(), vectorCandidates: [vector(1)], ftsCandidates: [fts(1)], logicalReadSearches: 2 };
     },
   });
   assert.equal(calls, 2);
   assert.equal(run.evidence.configuration.automaticProviderRetries, 0);
   assert.equal(run.evidence.configuration.queryRewriteCalls, 0);
   assert.equal(run.evidence.configuration.generationCalls, 0);
+  assert.equal(run.evidence.configuration.maximumLogicalReadSearches, 4);
+  assert.equal(run.evidence.runStatus, "COMPLETED");
   assert.equal(run.evidence.configuration.rrfK, 60);
   assert.equal(run.evidence.cases[0].rrf.rankings[0].rrfRank, 1);
   assert.equal(run.evidence.cases[0].latencyMs, 5);
@@ -147,6 +168,50 @@ test("provider failure is sanitized and is not retried", async () => {
   assert.equal(attempts, 1);
   assert.equal(run.evidence.cases[0].errorCategory, "RETRIEVAL_FAILURE");
   assert.equal(JSON.stringify(run.evidence).includes("secret provider body"), false);
+});
+
+test("authorized full dataset stops on quota and preserves completed evidence without retry", async () => {
+  const dataset = await loadAndValidateChatDataset();
+  const directory = await output("full-stop");
+  let attempts = 0;
+  let waits = 0;
+  const quotaResult = result();
+  quotaResult.status = { mode: "FTS_ONLY", candidateState: "HAS_CANDIDATES", relevanceState: "UN_CALIBRATED" };
+  quotaResult.diagnostics.mode = "FTS_ONLY";
+  quotaResult.diagnostics.embedding.failure = "RATE_LIMIT";
+  quotaResult.diagnostics.vector.attempted = false;
+  quotaResult.diagnostics.vector.succeeded = false;
+  quotaResult.diagnostics.failures = ["EMBEDDING"];
+
+  const run = await runRetrievalEvaluation(dataset, options(directory, {
+    live: true,
+    caseIds: dataset.cases.map((item) => item.id),
+    maxCases: FULL_DATASET_CASES,
+    maxEmbeddingCalls: FULL_DATASET_CASES,
+    maxLogicalReadSearches: FULL_DATASET_MAX_LOGICAL_READS,
+    requestDelayMs: 1_000,
+    fullDatasetAuthorized: true,
+  }), {
+    environment,
+    synthetic: true,
+    sleep: async () => { waits += 1; },
+    executeCase: async () => {
+      attempts += 1;
+      return attempts === 1
+        ? { result: result(), vectorCandidates: [vector(1)], ftsCandidates: [fts(1)], logicalReadSearches: 2 }
+        : { result: quotaResult, vectorCandidates: [], ftsCandidates: [fts(1)], logicalReadSearches: 1 };
+    },
+  });
+
+  assert.equal(attempts, 2);
+  assert.equal(waits, 1);
+  assert.equal(run.evidence.runStatus, "STOPPED");
+  assert.equal(run.evidence.stopReason, "PROVIDER_RATE_LIMITED");
+  assert.equal(run.evidence.cases.length, 2);
+  assert.equal(run.evidence.configuration.automaticProviderRetries, 0);
+  const saved = JSON.parse(await readFile(run.artifactPath, "utf8")) as { runStatus: string; cases: unknown[] };
+  assert.equal(saved.runStatus, "STOPPED");
+  assert.equal(saved.cases.length, 2);
 });
 
 test("artifacts must be outside the repository and filenames are deterministic", async () => {

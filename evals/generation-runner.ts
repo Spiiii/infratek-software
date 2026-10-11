@@ -30,6 +30,8 @@ const retrievalArtifactSchema = z.object({
   runId: z.string().trim().min(1),
   datasetVersion: z.string().trim().min(1),
   mode: z.literal("LIVE"),
+  // Historical completed artifacts predate this marker; new stopped/in-progress artifacts are never generation inputs.
+  runStatus: z.literal("COMPLETED").optional(),
   versions: z.object({
     model: z.string().trim().min(1),
     embedding: z.string().trim().min(1),

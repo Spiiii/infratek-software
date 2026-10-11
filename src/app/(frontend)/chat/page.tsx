@@ -25,7 +25,8 @@ export default function ChatPage() {
         </div>
         <ChatShell turnstileSiteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ""} />
         <p className="mx-auto mt-4 max-w-4xl text-center text-xs text-text-secondary">
-          Bản beta có thể từ chối câu hỏi khi chưa đủ nguồn. Không nhập dữ liệu mật hoặc thông tin cá nhân không cần thiết.
+          Bản beta có thể từ chối câu hỏi khi chưa đủ nguồn. Hệ thống có che một số định dạng email và số điện thoại,
+          nhưng không bảo đảm loại bỏ mọi thông tin cá nhân hoặc dữ liệu nhạy cảm.
         </p>
       </div>
     </section>

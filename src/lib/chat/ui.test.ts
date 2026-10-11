@@ -20,8 +20,17 @@ const source = {
 };
 
 test("chat page metadata is noindex and nofollow", async () => {
-  const page = await readFile(new URL("../../app/(frontend)/chat/page.tsx", import.meta.url), "utf8");
+  const [page, shell] = await Promise.all([
+    readFile(new URL("../../app/(frontend)/chat/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../../components/chat/chat-shell.tsx", import.meta.url), "utf8"),
+  ]);
   assert.match(page, /robots:\s*\{\s*index:\s*false,\s*follow:\s*false\s*\}/u);
+  assert.match(page, /không bảo đảm loại bỏ mọi thông tin cá nhân/u);
+  assert.match(shell, /Gemini API của Google/u);
+  assert.match(shell, /cải thiện sản phẩm/u);
+  assert.match(shell, /người kiểm duyệt/u);
+  assert.match(shell, /privacyAcknowledged/u);
+  assert.match(shell, /disabled=\{!privacyAcknowledged/u);
 });
 
 test("question validation enforces trim, 500 characters, busy state, and keyboard semantics", () => {

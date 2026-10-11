@@ -244,6 +244,9 @@ test("invalid artifact mode, version, duplicates, and missing cases abort", asyn
     runGenerationEvaluation(dataset, artifact(["chat-eval-ans-024"], { mode: "DRY_RUN" }), options(await output("mode")), { environment }),
   );
   await assert.rejects(
+    runGenerationEvaluation(dataset, artifact(["chat-eval-ans-024"], { runStatus: "STOPPED" }), options(await output("stopped")), { environment }),
+  );
+  await assert.rejects(
     runGenerationEvaluation(dataset, artifact(["chat-eval-ans-024"], {
       versions: { ...artifact([]).versions, prompt: "p5.1" },
     }), options(await output("version")), { environment }),

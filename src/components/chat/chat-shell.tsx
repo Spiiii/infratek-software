@@ -29,6 +29,7 @@ export function ChatShell({ turnstileSiteKey }: { turnstileSiteKey: string }) {
   const [widgetKey, setWidgetKey] = useState(0);
   const [rateLimited, setRateLimited] = useState(false);
   const [leadOpen, setLeadOpen] = useState(false);
+  const [privacyAcknowledged, setPrivacyAcknowledged] = useState(false);
   const abortRef = useRef<AbortController | undefined>(undefined);
   const rateLimitTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const mountedRef = useRef(true);
@@ -147,7 +148,7 @@ export function ChatShell({ turnstileSiteKey }: { turnstileSiteKey: string }) {
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {latestConversationId ? <Button type="button" size="sm" variant="ghost" onClick={() => setLeadOpen(true)}>Đăng ký tư vấn</Button> : <Button asChild size="sm" variant="ghost"><Link href="/contact">Liên hệ</Link></Button>}
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700"><ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" /> An toàn</span>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700"><ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" /> Có kiểm soát</span>
         </div>
       </header>
 
@@ -171,7 +172,24 @@ export function ChatShell({ turnstileSiteKey }: { turnstileSiteKey: string }) {
         </div>
       )}
 
-      <ChatComposer question={question} busy={busy} disabled={rateLimited || phase === "VERIFYING" || phase === "VERIFICATION_FAILED"} onQuestionChange={setQuestion} onSubmit={submit} />
+      <div className="border-t border-border bg-amber-50/70 px-4 py-3 sm:px-6">
+        <label className="flex items-start gap-3 text-xs leading-relaxed text-text-secondary">
+          <input
+            type="checkbox"
+            checked={privacyAcknowledged}
+            onChange={(event) => setPrivacyAcknowledged(event.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 rounded border-border"
+          />
+          <span>
+            Tôi hiểu câu hỏi và nội dung nguồn liên quan sẽ được gửi tới Gemini API của Google. Với dịch vụ miễn phí,
+            Google có thể dùng input/output để cải thiện sản phẩm và người kiểm duyệt có thể xử lý dữ liệu theo{
+            " "}<a href="https://ai.google.dev/gemini-api/terms" target="_blank" rel="noreferrer" className="font-semibold text-primary hover:underline">điều khoản Gemini API</a>.
+            Tôi sẽ không nhập thông tin cá nhân, bí mật, tài liệu nội bộ hoặc dữ liệu nhạy cảm.
+          </span>
+        </label>
+      </div>
+
+      <ChatComposer question={question} busy={busy} disabled={!privacyAcknowledged || rateLimited || phase === "VERIFYING" || phase === "VERIFICATION_FAILED"} onQuestionChange={setQuestion} onSubmit={submit} />
     </Card>
   );
 }

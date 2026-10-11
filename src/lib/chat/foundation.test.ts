@@ -13,12 +13,14 @@ import {
 } from "./privacy.ts";
 import { buildChatSystemPrompt, NO_INFORMATION_FALLBACK } from "./prompt.ts";
 
-test("build-safe defaults pin the approved P5.1 models and uncalibrated threshold", () => {
+test("build-safe defaults pin the approved Phase 5 versions and uncalibrated threshold", () => {
   const config = readChatBuildSafeConfig({});
   assert.equal(config.model.chat, "gemini-3.5-flash-lite");
   assert.equal(config.model.embedding, "gemini-embedding-2");
   assert.equal(config.model.embeddingDimension, 768);
   assert.equal(config.versioning.prompt, "p5.2");
+  assert.equal(config.versioning.embedding, "gemini-embedding-2-768-p5.3");
+  assert.equal(config.versioning.ingestion, "p5.3-v1");
   assert.equal(config.versioning.threshold, "UN-CALIBRATED");
   assert.equal(config.limits.outputMaxTokens, 256);
   assert.equal(config.limits.inputTokenBudget, 12_000);

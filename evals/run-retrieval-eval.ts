@@ -15,6 +15,7 @@ import {
   type RetrievalRunnerOptions,
 } from "./retrieval-runner.ts";
 import { loadAndValidateChatDataset } from "./validate-chat-dataset.ts";
+import { assertRetrievalPreviewDatabase } from "./retrieval-target.ts";
 
 function values(name: string): string[] {
   return process.argv.flatMap((value, index) => value === name ? [process.argv[index + 1] ?? ""] : []);
@@ -80,6 +81,7 @@ export async function createLiveExecutor(
   environment: Record<string, string | undefined>,
   loadModules: () => Promise<PayloadRuntimeModules> = loadPayloadRuntimeModules,
 ): Promise<ManagedRetrievalExecutor> {
+  assertRetrievalPreviewDatabase(environment);
   const { getPayload, payloadConfig } = await loadModules();
   let payloadPromise: ReturnType<typeof getPayload> | undefined;
   const payload = () => {
@@ -99,10 +101,12 @@ export async function createLiveExecutor(
   const executeCase: RetrievalCaseExecutor = async (item) => {
     let vectorCandidates: VectorCandidate[] = [];
     let ftsCandidates: FtsCandidate[] = [];
+    let logicalReadSearches = 0;
     const result = await retrieve(item.question, {
       queryEmbedding,
       vectorRepository: {
         async findTopCandidates(embedding) {
+          logicalReadSearches += 1;
           const response = await vector.findTopCandidates(embedding);
           vectorCandidates = response.candidates;
           return response;
@@ -110,13 +114,14 @@ export async function createLiveExecutor(
       },
       ftsRepository: {
         async findTopCandidates(query) {
+          logicalReadSearches += 1;
           const response = await fts.findTopCandidates(query);
           ftsCandidates = response.candidates;
           return response;
         },
       },
     }, environment);
-    return { result, vectorCandidates, ftsCandidates };
+    return { result, vectorCandidates, ftsCandidates, logicalReadSearches };
   };
 
   return {
@@ -152,6 +157,13 @@ export async function main(): Promise<void> {
   const maxEmbeddingCalls = value("--max-embedding-calls")
     ? positiveInteger("--max-embedding-calls")
     : undefined;
+  const maxLogicalReadSearches = value("--max-logical-read-searches")
+    ? positiveInteger("--max-logical-read-searches")
+    : undefined;
+  const requestDelayMs = value("--request-delay-ms")
+    ? positiveInteger("--request-delay-ms")
+    : 0;
+  const fullDatasetAuthorized = process.argv.includes("--authorize-full-dataset");
   const outputDirectory = resolve(
     value("--output-dir") ?? resolve(tmpdir(), "infratek-p5.7e", runId),
   );
@@ -164,6 +176,9 @@ export async function main(): Promise<void> {
     caseIds,
     maxCases,
     maxEmbeddingCalls,
+    maxLogicalReadSearches,
+    requestDelayMs,
+    fullDatasetAuthorized,
   };
   validateRetrievalRunnerOptions(options);
   const datasetIds = new Set(dataset.cases.map((item) => item.id));
@@ -185,6 +200,9 @@ export async function main(): Promise<void> {
     mode: evidence.mode,
     cases: evidence.cases.length,
     embeddingCalls: evidence.cases.reduce((sum, item) => sum + item.embedding.calls, 0),
+    logicalReadSearches: evidence.cases.reduce((sum, item) => sum + item.logicalReadSearches, 0),
+    runStatus: evidence.runStatus,
+    stopReason: evidence.stopReason,
     generationCalls: evidence.configuration.generationCalls,
     artifactPath,
   })}\n`);

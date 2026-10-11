@@ -12,7 +12,7 @@ const buildSafeSchema = z.object({
   EMBED_VERSION: z.string().trim().min(1).default("gemini-embedding-2-768-p5.3"),
   PROMPT_VERSION: z.string().trim().min(1).default("p5.2"),
   THRESHOLD_VERSION: z.literal(UNCALIBRATED_THRESHOLD_VERSION).default(UNCALIBRATED_THRESHOLD_VERSION),
-  INGESTION_VERSION: z.string().trim().min(1).default("p5.1"),
+  INGESTION_VERSION: z.string().trim().min(1).default("p5.3-v1"),
   CHAT_PER_MINUTE: positiveInteger.default(6),
   CHAT_IP_DAILY_CAP: positiveInteger.default(50),
   CHAT_SESSION_CAP: positiveInteger.default(30),

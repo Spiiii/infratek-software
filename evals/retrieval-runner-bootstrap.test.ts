@@ -13,6 +13,7 @@ import {
 } from "./run-retrieval-eval.ts";
 
 const environment = {
+  DATABASE_URL: "postgresql://test:test@ep-nameless-leaf-b3fc4hoi-pooler.example.neon.tech/neondb?sslmode=require",
   GOOGLE_GENERATIVE_AI_API_KEY: "synthetic-provider-key-not-called",
   EMBED_MODEL: "gemini-embedding-2",
   EMBED_DIMENSION: "768",
