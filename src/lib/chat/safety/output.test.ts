@@ -133,3 +133,48 @@ test("unsupported price and non-numeric commitment fail closed", () => {
     assert.ok(commitment.categories.includes("UNSUPPORTED_RISKY_CLAIM"));
   }
 });
+
+test("risky keywords are recognized consistently with and without Vietnamese diacritics", () => {
+  for (const answer of [
+    "Hệ thống đảm bảo bảo mật dữ liệu [S1].",
+    "He thong dam bao bao mat du lieu [S1].",
+    "Hệ thống cam kết kiểm tra kết quả [S1].",
+    "He thong cam ket kiem tra ket qua [S1].",
+  ]) {
+    const result = validateProtectedOutput(answer, "Nguồn chỉ mô tả chức năng OCR.");
+    assert.equal(result.state, "SAFE_FALLBACK");
+    if (result.state === "SAFE_FALLBACK") {
+      assert.ok(result.categories.includes("UNSUPPORTED_RISKY_CLAIM"));
+    }
+  }
+
+  assert.equal(
+    validateProtectedOutput(
+      "He thong dam bao bao mat du lieu [S1].",
+      "Hệ thống đảm bảo bảo mật dữ liệu.",
+    ).state,
+    "SUPPORTED",
+  );
+});
+
+test("risky keyword matching requires full token boundaries", () => {
+  assert.equal(
+    validateProtectedOutput("giátrị tài liệu được trích xuất [S1].", "ocr hỗ trợ tài liệu.").state,
+    "SUPPORTED",
+  );
+  assert.equal(
+    validateProtectedOutput("có thể trienkhaiable trong hệ thống [S1].", "ocr hỗ trợ tài liệu.").state,
+    "SUPPORTED",
+  );
+});
+
+test("citations cannot authorize unsupported unaccented risky claims", () => {
+  const result = validateProtectedOutput(
+    "He thong cam ket chinh xac tuyet doi [S1].",
+    "[S1] mô tả quy trình OCR.",
+  );
+  assert.equal(result.state, "SAFE_FALLBACK");
+  if (result.state === "SAFE_FALLBACK") {
+    assert.ok(result.categories.includes("UNSUPPORTED_RISKY_CLAIM"));
+  }
+});

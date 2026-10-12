@@ -42,7 +42,7 @@ function normalizeText(value: string): string {
     .trim();
 }
 
-function canonicalizeProperName(value: string): string {
+function canonicalizeVietnameseTokens(value: string): string {
   return value
     .normalize("NFD")
     .replace(/\p{M}+/gu, "")
@@ -54,11 +54,15 @@ function canonicalizeProperName(value: string): string {
     .trim();
 }
 
-function hasUnsupportedProperName(answer: string, context: string): boolean {
-  const canonicalContext = ` ${canonicalizeProperName(context)} `;
-  const candidates = values(PROPER_NAME, answer, canonicalizeProperName);
+function containsTokenPhrase(text: string, phrase: string): boolean {
+  return ` ${text} `.includes(` ${phrase} `);
+}
 
-  return [...candidates].some((candidate) => !canonicalContext.includes(` ${candidate} `));
+function hasUnsupportedProperName(answer: string, context: string): boolean {
+  const canonicalContext = canonicalizeVietnameseTokens(context);
+  const candidates = values(PROPER_NAME, answer, canonicalizeVietnameseTokens);
+
+  return [...candidates].some((candidate) => !containsTokenPhrase(canonicalContext, candidate));
 }
 
 function normalizePhone(value: string): string {
@@ -93,22 +97,25 @@ function withoutContacts(value: string): string {
 }
 
 function hasUnsupportedRiskyClaim(answer: string, context: string): boolean {
-  const normalizedContext = normalizeText(context);
+  const canonicalContext = canonicalizeVietnameseTokens(context);
+  const canonicalKeywords = RISKY_KEYWORDS.map(canonicalizeVietnameseTokens);
   const contextNumbers = values(NUMBER, withoutContacts(context), normalizeNumber);
   const sentences = answer.split(/[.!?\n]+/u).map((sentence) => sentence.trim()).filter(Boolean);
 
   return sentences.some((sentence) => {
-    const normalizedSentence = normalizeText(sentence);
-    const keywords = RISKY_KEYWORDS.filter((keyword) => normalizedSentence.includes(keyword));
+    const canonicalSentence = canonicalizeVietnameseTokens(sentence);
+    const keywords = canonicalKeywords.filter((keyword) =>
+      containsTokenPhrase(canonicalSentence, keyword)
+    );
     if (keywords.length === 0) return false;
     const claimNumbers = values(NUMBER, withoutContacts(sentence), normalizeNumber);
     if (claimNumbers.size > 0) {
       return (
-        keywords.some((keyword) => !normalizedContext.includes(keyword)) ||
+        keywords.some((keyword) => !containsTokenPhrase(canonicalContext, keyword)) ||
         [...claimNumbers].some((value) => !contextNumbers.has(value))
       );
     }
-    return !normalizedContext.includes(normalizedSentence);
+    return !containsTokenPhrase(canonicalContext, canonicalSentence);
   });
 }
 
