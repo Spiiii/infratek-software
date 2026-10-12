@@ -8,6 +8,12 @@ import type {
   SelectedSource,
 } from "../retrieval/types.ts";
 import { decideAnswer, preCalibrationDecisionPolicy } from "./policy.ts";
+import {
+  classifyBoundaryRisk,
+  evaluateRelevanceCandidate,
+  RELEVANCE_CANDIDATE_POLICY_VERSION,
+  RELEVANCE_CANDIDATE_VECTOR_THRESHOLD,
+} from "./candidate-policy.ts";
 import { PRE_CALIBRATION_POLICY_VERSION } from "./types.ts";
 
 const source: SelectedSource = {
@@ -207,4 +213,53 @@ test("an invalid runtime status fails closed without leaking its shape", () => {
     reason: "INVALID_RETRIEVAL_STATE",
     policyVersion: PRE_CALIBRATION_POLICY_VERSION,
   });
+});
+
+test("candidate policy requires complete hybrid vector evidence at the approved cutoff", () => {
+  const status: RetrievalStatus = {
+    mode: "HYBRID", candidateState: "HAS_CANDIDATES", relevanceState: "UN_CALIBRATED",
+  };
+  assert.equal(evaluateRelevanceCandidate({
+    question: "Infratek cung cấp dịch vụ OCR nào?", status,
+    vectorSimilarities: [RELEVANCE_CANDIDATE_VECTOR_THRESHOLD],
+  }).state, "ANSWER");
+  assert.equal(evaluateRelevanceCandidate({
+    question: "Infratek cung cấp dịch vụ OCR nào?", status,
+    vectorSimilarities: [RELEVANCE_CANDIDATE_VECTOR_THRESHOLD - Number.EPSILON],
+  }).state, "NO_CONTEXT");
+  assert.equal(evaluateRelevanceCandidate({
+    question: "Infratek cung cấp dịch vụ OCR nào?",
+    status: { mode: "FTS_ONLY", candidateState: "HAS_CANDIDATES", relevanceState: "UN_CALIBRATED" },
+    vectorSimilarities: [0.99],
+  }).state, "DEPENDENCY_FALLBACK");
+  assert.equal(evaluateRelevanceCandidate({
+    question: "Infratek cung cấp dịch vụ OCR nào?", status, vectorSimilarities: [],
+  }).state, "NO_CONTEXT");
+});
+
+test("candidate boundary-risk gate rejects all three unsupported groups", () => {
+  const status: RetrievalStatus = {
+    mode: "HYBRID", candidateState: "HAS_CANDIDATES", relevanceState: "UN_CALIBRATED",
+  };
+  const fixtures = [
+    ["Dự án AI nào thành công nhất?", "SUBJECTIVE_SUPERLATIVE"],
+    ["OCR co du chinh xac cho chung tu cua toi khong?", "PERSONALIZED_SUFFICIENCY"],
+    ["Bao lâu thì một PoC AI chứng minh được hiệu quả?", "TIME_TO_VALUE_COMMITMENT"],
+  ] as const;
+  for (const [question, expectedRisk] of fixtures) {
+    assert.equal(classifyBoundaryRisk(question), expectedRisk);
+    const decision = evaluateRelevanceCandidate({ question, status, vectorSimilarities: [0.99] });
+    assert.equal(decision.state, "NO_CONTEXT");
+    assert.equal(decision.reason, "BOUNDARY_RISK");
+    assert.equal(decision.boundaryRisk, expectedRisk);
+  }
+});
+
+test("candidate policy is isolated from the production pre-calibration gate", () => {
+  const productionDecision = decideAnswer(result(
+    { mode: "HYBRID", candidateState: "HAS_CANDIDATES", relevanceState: "UN_CALIBRATED" },
+    [source],
+  ));
+  assert.equal(productionDecision.state, "CALIBRATION_REQUIRED");
+  assert.notEqual(preCalibrationDecisionPolicy.version, RELEVANCE_CANDIDATE_POLICY_VERSION);
 });

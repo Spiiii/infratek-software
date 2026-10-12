@@ -8,6 +8,7 @@ export type RetentionCleanupResult = {
   conversations: number;
   feedback: number;
   unanswered: number;
+  leads: number;
 };
 
 function nonNegativeCount(value: unknown): number {
@@ -19,8 +20,7 @@ function nonNegativeCount(value: unknown): number {
 }
 
 /**
- * Cleanup primitive only. It is intentionally not connected to an HTTP route,
- * script, cron, migration, or application startup path.
+ * Atomic cleanup primitive. Callers must authenticate before invoking it.
  */
 export async function cleanupExpiredChatData(
   executor: RetentionQueryExecutor,
@@ -33,11 +33,14 @@ export async function cleanupExpiredChatData(
        DELETE FROM chat_unanswered WHERE expires_at <= $1 RETURNING 1
      ), deleted_conversations AS (
        DELETE FROM chat_conversations WHERE expires_at <= $1 RETURNING 1
+     ), deleted_leads AS (
+       DELETE FROM chat_leads WHERE expires_at <= $1 RETURNING 1
      )
      SELECT
        (SELECT count(*) FROM deleted_conversations) AS conversations,
        (SELECT count(*) FROM deleted_feedback) AS feedback,
-       (SELECT count(*) FROM deleted_unanswered) AS unanswered`,
+       (SELECT count(*) FROM deleted_unanswered) AS unanswered,
+       (SELECT count(*) FROM deleted_leads) AS leads`,
     [now],
   );
   const row = result.rows[0];
@@ -46,5 +49,6 @@ export async function cleanupExpiredChatData(
     conversations: nonNegativeCount(row.conversations),
     feedback: nonNegativeCount(row.feedback),
     unanswered: nonNegativeCount(row.unanswered),
+    leads: nonNegativeCount(row.leads),
   };
 }
