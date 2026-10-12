@@ -66,6 +66,45 @@ test("proper customer names require support in supplied context", () => {
   }
 });
 
+test("proper names match canonical contiguous tokens across casing and Vietnamese diacritics", () => {
+  assert.equal(
+    validateProtectedOutput("Core Banking hỗ trợ xử lý hồ sơ [S1].", "Tích hợp vào core banking workflow.").state,
+    "SUPPORTED",
+  );
+  assert.equal(
+    validateProtectedOutput("Giai Phap OCR hỗ trợ xử lý hồ sơ [S1].", "Giải Pháp OCR hỗ trợ xử lý hồ sơ.").state,
+    "SUPPORTED",
+  );
+  assert.equal(
+    validateProtectedOutput("Document AI hỗ trợ xử lý hồ sơ [S1].", "Nền tảng Document AI hỗ trợ xử lý hồ sơ.").state,
+    "SUPPORTED",
+  );
+});
+
+test("proper-name support requires exact contiguous token boundaries", () => {
+  for (const context of [
+    "Nền tảng MegaContoso LimitedServices không phải tên khách hàng.",
+    "Contoso là tên ví dụ và Limited xuất hiện ở vị trí khác.",
+  ]) {
+    const result = validateProtectedOutput("Contoso Limited đã triển khai [S1].", context);
+    assert.equal(result.state, "SAFE_FALLBACK");
+    if (result.state === "SAFE_FALLBACK") {
+      assert.ok(result.categories.includes("UNSUPPORTED_PROPER_NAME"));
+    }
+  }
+});
+
+test("a valid citation cannot authorize a proper name absent from context", () => {
+  const result = validateProtectedOutput(
+    "Contoso Limited đã triển khai [S1].",
+    "[S1] mô tả một khách hàng ẩn danh.",
+  );
+  assert.equal(result.state, "SAFE_FALLBACK");
+  if (result.state === "SAFE_FALLBACK") {
+    assert.ok(result.categories.includes("UNSUPPORTED_PROPER_NAME"));
+  }
+});
+
 test("multiple violations reject the complete output without repair", () => {
   const raw = "Contoso Limited cam kết ROI 300% trong 14 ngày, email fake@example.com [S1].";
   const result = validateProtectedOutput(raw, "Nội dung không có các dữ kiện này.");

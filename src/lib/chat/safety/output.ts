@@ -42,6 +42,25 @@ function normalizeText(value: string): string {
     .trim();
 }
 
+function canonicalizeProperName(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/\p{M}+/gu, "")
+    .toLocaleLowerCase("vi")
+    .replace(/đ/gu, "d")
+    .replace(CITATION, " ")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
+}
+
+function hasUnsupportedProperName(answer: string, context: string): boolean {
+  const canonicalContext = ` ${canonicalizeProperName(context)} `;
+  const candidates = values(PROPER_NAME, answer, canonicalizeProperName);
+
+  return [...candidates].some((candidate) => !canonicalContext.includes(` ${candidate} `));
+}
+
 function normalizePhone(value: string): string {
   const digits = value.replace(/\D/gu, "");
   return digits.startsWith("84") ? `0${digits.slice(2)}` : digits;
@@ -117,11 +136,9 @@ export function validateProtectedOutput(
     categories.add("UNSUPPORTED_NUMBER");
   }
   if (
-    unsupportedValues(
+    hasUnsupportedProperName(
       withoutContacts(answerWithoutCitations),
       withoutContacts(trustedContext),
-      PROPER_NAME,
-      normalizeText,
     )
   ) {
     categories.add("UNSUPPORTED_PROPER_NAME");
