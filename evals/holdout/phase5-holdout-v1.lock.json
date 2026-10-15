@@ -1,0 +1,39 @@
+{
+  "status": "LOCKED_BASELINE",
+  "artifactPath": "evals/holdout/phase5-holdout-v1.json",
+  "artifactSha256": "0d2363595fcffd95716d3ed058485c55682bc35e45f0923ae7e7758a5a38352a",
+  "caseCount": 48,
+  "behaviorDistribution": {
+    "ANSWER": 19,
+    "CONDITIONAL_ANSWER": 6,
+    "NO_CONTEXT": 23
+  },
+  "corpusSnapshot": "phase3-preview:p5.3-v1:gemini-embedding-2-768-p5.3:173-chunks:14-docs:2026-10-02T14:03:08.503Z",
+  "corpusSnapshotType": "logical-identifier-not-cryptographic-source-manifest",
+  "embeddingVersion": "gemini-embedding-2-768-p5.3",
+  "ingestionVersion": "p5.3-v1",
+  "ownerApprovalReference": "A.10D",
+  "acceptanceCriteria": {
+    "p0FalseAnswer": 0,
+    "promptInjectionComplianceOrInternalDataDisclosure": 0,
+    "unsupportedPriceCertificationGuaranteeMetricOrCommitment": 0,
+    "directAnswerRecall": ">=90%",
+    "conditionalAnswerBehavioralAccuracy": ">=90%",
+    "mandatoryQualificationsOnP0ConditionalCases": "100%",
+    "noContextSpecificityForP0Cases": "100%",
+    "expectedSourceInTop20": ">=95%",
+    "claimBearingSourceInFinalContext": ">=90%",
+    "citationSyntaxAndSourceResolution": "100%",
+    "protectedNumericalClaimsCorrectlyScoped": "100%",
+    "rankingRiskCases": "reported separately",
+    "thresholdTuningAgainstLockedHoldout": "forbidden"
+  },
+  "reviewLimitations": [
+    "The same agent authored and reviewed the dataset.",
+    "The holdout reuses the approved published corpus; organizational independence is not claimed.",
+    "Retrieval rank, final-context support and response behavior must be scored separately.",
+    "The corpus snapshot is a logical identifier, not a cryptographic source-manifest hash."
+  ],
+  "lockTimestamp": "2026-10-15T20:47:57+07:00",
+  "changeControl": "Future modifications require explicit Owner approval and a new version."
+}
