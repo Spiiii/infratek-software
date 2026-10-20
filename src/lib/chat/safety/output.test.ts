@@ -134,6 +134,47 @@ test("unsupported price and non-numeric commitment fail closed", () => {
   }
 });
 
+test("ordinary grounded service descriptions allow harmless paraphrasing", () => {
+  const context = [
+    "Infratek Software cung cấp các giải pháp AI và phần mềm cho doanh nghiệp.",
+    "AI Consulting hỗ trợ xác định use case và lộ trình ứng dụng AI.",
+    "Software Development thiết kế web app và hệ thống tích hợp AI.",
+    "IT Outsourcing bổ sung nhân sự kỹ thuật hoặc dedicated team.",
+  ].join("\n");
+
+  for (const answer of [
+    "Infratek Software triển khai các giải pháp AI và phần mềm cho doanh nghiệp [S1].",
+    "AI Consulting hỗ trợ xác định use case và lộ trình ứng dụng AI [S1].",
+    "Software Development thiết kế web app và hệ thống tích hợp AI [S2].",
+    "IT Outsourcing bổ sung nhân sự kỹ thuật hoặc dedicated team [S3].",
+  ]) {
+    assert.equal(validateProtectedOutput(answer, context).state, "SUPPORTED");
+  }
+});
+
+test("unsupported SLA, deployment deadline, ROI and contractual entitlement fail closed", () => {
+  const context = "Infratek Software cung cấp dịch vụ tư vấn và triển khai giải pháp theo nhu cầu.";
+  for (const answer of [
+    "Infratek Software cam kết SLA hỗ trợ ưu tiên [S1].",
+    "Infratek Software hoàn tất triển khai trong 7 ngày [S1].",
+    "Infratek Software đảm bảo ROI 300% [S1].",
+    "Hợp đồng mặc định bao gồm hỗ trợ trọn đời [S1].",
+  ]) {
+    assert.equal(validateProtectedOutput(answer, context).state, "SAFE_FALLBACK");
+  }
+});
+
+test("historical case-study metrics cannot become universal guarantees", () => {
+  const result = validateProtectedOutput(
+    "Infratek Software đảm bảo mọi khách hàng đạt độ chính xác 96% [S1].",
+    "Một dự án OCR ghi nhận độ chính xác 96% trong phạm vi case study.",
+  );
+  assert.equal(result.state, "SAFE_FALLBACK");
+  if (result.state === "SAFE_FALLBACK") {
+    assert.ok(result.categories.includes("UNSUPPORTED_RISKY_CLAIM"));
+  }
+});
+
 test("risky keywords are recognized consistently with and without Vietnamese diacritics", () => {
   for (const answer of [
     "Hệ thống đảm bảo bảo mật dữ liệu [S1].",

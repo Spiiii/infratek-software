@@ -25,12 +25,14 @@ const RISKY_KEYWORDS = [
   "lợi nhuận",
   "tiết kiệm",
   "kết quả",
-  "triển khai",
   "cam kết",
   "bảo đảm",
   "đảm bảo",
   "chắc chắn",
+  "sla",
+  "hợp đồng",
 ] as const;
+const QUANTIFIED_RISKY_KEYWORDS = ["triển khai"] as const;
 
 function normalizeText(value: string): string {
   return value
@@ -99,6 +101,7 @@ function withoutContacts(value: string): string {
 function hasUnsupportedRiskyClaim(answer: string, context: string): boolean {
   const canonicalContext = canonicalizeVietnameseTokens(context);
   const canonicalKeywords = RISKY_KEYWORDS.map(canonicalizeVietnameseTokens);
+  const canonicalQuantifiedKeywords = QUANTIFIED_RISKY_KEYWORDS.map(canonicalizeVietnameseTokens);
   const contextNumbers = values(NUMBER, withoutContacts(context), normalizeNumber);
   const sentences = answer.split(/[.!?\n]+/u).map((sentence) => sentence.trim()).filter(Boolean);
 
@@ -107,11 +110,15 @@ function hasUnsupportedRiskyClaim(answer: string, context: string): boolean {
     const keywords = canonicalKeywords.filter((keyword) =>
       containsTokenPhrase(canonicalSentence, keyword)
     );
-    if (keywords.length === 0) return false;
     const claimNumbers = values(NUMBER, withoutContacts(sentence), normalizeNumber);
+    const quantifiedKeywords = claimNumbers.size > 0
+      ? canonicalQuantifiedKeywords.filter((keyword) => containsTokenPhrase(canonicalSentence, keyword))
+      : [];
+    const guardedKeywords = [...keywords, ...quantifiedKeywords];
+    if (guardedKeywords.length === 0) return false;
     if (claimNumbers.size > 0) {
       return (
-        keywords.some((keyword) => !containsTokenPhrase(canonicalContext, keyword)) ||
+        guardedKeywords.some((keyword) => !containsTokenPhrase(canonicalContext, keyword)) ||
         [...claimNumbers].some((value) => !contextNumbers.has(value))
       );
     }
