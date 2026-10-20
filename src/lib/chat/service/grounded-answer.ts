@@ -74,6 +74,13 @@ export async function generateGroundedAnswer(options: {
   if (decision.state === "CALIBRATION_REQUIRED") {
     return { state: "CALIBRATION_REQUIRED", policyVersion: decision.policyVersion };
   }
+  if (decision.state === "HUMAN_HANDOFF") {
+    return {
+      state: "DEPENDENCY_FALLBACK",
+      reason: "INVALID_RETRIEVAL_STATE",
+      policyVersion: decision.policyVersion,
+    };
+  }
 
   const context = buildGroundingContext(decision.sources);
   if (context.state !== "READY") {

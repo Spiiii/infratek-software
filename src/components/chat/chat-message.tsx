@@ -6,6 +6,7 @@ import { splitGroundedCitations } from "@/lib/chat/ui";
 import { cn } from "@/lib/utils";
 import { ChatSources } from "./chat-sources";
 import { ChatFeedback } from "./chat-feedback";
+import { ChatHandoffCard } from "./chat-handoff-card";
 
 export type ChatMessageModel = {
   id: string;
@@ -46,6 +47,9 @@ export function ChatMessage({ message, feedbackEligible = false }: { message: Ch
         {assistant && message.outcome && <ChatSources sources={message.outcome.sources} />}
         {assistant && feedbackEligible && message.outcome?.kind === "ANSWER" && message.outcome.conversationId && (
           <ChatFeedback conversationId={message.outcome.conversationId} />
+        )}
+        {assistant && message.outcome?.kind === "HUMAN_HANDOFF" && message.outcome.handoffContact && (
+          <ChatHandoffCard contact={message.outcome.handoffContact} />
         )}
         {assistant && message.outcome?.showContact && (
           <Link href="/contact" className="mt-3 inline-flex rounded-md text-sm font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">

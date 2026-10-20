@@ -11,6 +11,7 @@ import {
   splitGroundedCitations,
   validateChatQuestion,
 } from "./ui.ts";
+import { APPROVED_SALES_CONTACT } from "./handoff.ts";
 
 const source = {
   label: "S1" as const,
@@ -104,4 +105,22 @@ test("client source preserves accessibility and stale-request safeguards", async
   assert.match(shell, /AbortController/u);
   assert.match(shell, /outcome\.retryAfterSeconds \* 1_000/u);
   assert.match(turnstile, /aria-label="Xác minh người dùng"/u);
+});
+
+test("response mapper accepts only the Owner-approved handoff contact", () => {
+  const outcome = mapPublicChatResponse({
+    status: "HUMAN_HANDOFF",
+    message: "Trao đổi trực tiếp.",
+    contact: APPROVED_SALES_CONTACT,
+    conversationId: "conversation-1",
+  });
+  assert.equal(outcome.kind, "HUMAN_HANDOFF");
+  assert.deepEqual(outcome.handoffContact, APPROVED_SALES_CONTACT);
+  assert.equal(outcome.showContact, false);
+  assert.equal(mapPublicChatResponse({
+    status: "HUMAN_HANDOFF",
+    message: "x",
+    contact: { ...APPROVED_SALES_CONTACT, zalo: "https://example.com" },
+    conversationId: "c",
+  }).kind, "MALFORMED_RESPONSE");
 });

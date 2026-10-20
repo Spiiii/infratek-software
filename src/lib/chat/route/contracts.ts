@@ -1,6 +1,9 @@
 import { z } from "zod";
 
 import type { CitedPublicSource } from "../grounding/citations.ts";
+import type { APPROVED_SALES_CONTACT } from "../handoff.ts";
+
+export type PublicSalesContact = typeof APPROVED_SALES_CONTACT;
 
 export const publicChatRequestSchema = z.object({
   question: z.string().max(500).transform((value) => value.trim()).pipe(z.string().min(1)),
@@ -15,7 +18,8 @@ export type PublicChatResponse =
   | { status: "INVALID_REQUEST" }
   | { status: "VERIFICATION_REQUIRED" }
   | { status: "RATE_LIMITED"; retryAfterSeconds?: number; fallback: string }
-  | { status: "SAFE_FALLBACK"; conversationId?: string };
+  | { status: "SAFE_FALLBACK"; conversationId?: string }
+  | { status: "HUMAN_HANDOFF"; message: string; contact: PublicSalesContact; conversationId: string };
 
 export const NO_CONTEXT_FALLBACK =
   "Hiện Infratek chưa có đủ thông tin để trả lời câu hỏi này. Vui lòng liên hệ đội ngũ Infratek để được hỗ trợ.";

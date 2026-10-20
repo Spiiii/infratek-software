@@ -29,6 +29,7 @@ const buildSafeSchema = z.object({
   CHAT_CONVERSATION_RETENTION_DAYS: positiveInteger.default(30),
   CHAT_UNANSWERED_RETENTION_DAYS: positiveInteger.default(90),
   CHAT_FEEDBACK_RETENTION_DAYS: positiveInteger.default(90),
+  CHAT_PREVIEW_MVP_ENABLED: z.enum(["true", "false"]).default("false"),
 });
 
 const runtimeSecretsSchema = z.object({
@@ -67,6 +68,7 @@ export type ChatBuildSafeConfig = {
     turnstileTimeoutMs: number;
   };
   retentionDays: { conversations: number; unanswered: number; feedback: number };
+  features: { previewMvpEnabled: boolean };
 };
 
 export type ChatRuntimeSecrets = { googleGenerativeAiApiKey: string };
@@ -115,6 +117,7 @@ export function readChatBuildSafeConfig(
       unanswered: value.CHAT_UNANSWERED_RETENTION_DAYS,
       feedback: value.CHAT_FEEDBACK_RETENTION_DAYS,
     },
+    features: { previewMvpEnabled: value.CHAT_PREVIEW_MVP_ENABLED === "true" },
   };
 }
 

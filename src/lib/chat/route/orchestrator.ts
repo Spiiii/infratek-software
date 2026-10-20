@@ -10,6 +10,7 @@ import type { ChatGenerationAdapter } from "../generation/types.ts";
 import type { CitedPublicSource } from "../grounding/citations.ts";
 import type { RetrievalResult } from "../retrieval/types.ts";
 import type { UnsupportedOutputCategory } from "../safety/output.ts";
+import { APPROVED_SALES_CONTACT, HUMAN_HANDOFF_MESSAGE } from "../handoff.ts";
 import type {
   ChatSecurityResult,
   ClientIpResolver,
@@ -207,13 +208,50 @@ export function createChatPostHandler(dependencies: ChatRouteDependencies) {
     } catch {
       return dependencyFallback(cookie);
     }
+    const preflightDecision = dependencies.decisionPolicy.preflight?.({ question: prepared.currentQuestion.value });
+    if (preflightDecision?.state === "HUMAN_HANDOFF") {
+      const saved = await persist(dependencies, active, security.sessionId, {
+        userMessage: parsed.data.question,
+        assistantMessage: HUMAN_HANDOFF_MESSAGE,
+        assistantOutcome: "HUMAN_HANDOFF",
+      });
+      if (saved.state !== "SAVED") return dependencyFallback(cookie);
+      return json({
+        response: {
+          status: "HUMAN_HANDOFF",
+          message: HUMAN_HANDOFF_MESSAGE,
+          contact: APPROVED_SALES_CONTACT,
+          conversationId: saved.conversationId,
+        },
+        status: 200,
+        cookie,
+      });
+    }
     let retrieval: RetrievalResult;
     try {
       retrieval = await dependencies.retrieve(prepared.retrievalText);
     } catch {
       return dependencyFallback(cookie);
     }
-    const decision = dependencies.decisionPolicy.decide(retrieval);
+    const decision = dependencies.decisionPolicy.decide(retrieval, { question: prepared.currentQuestion.value });
+    if (decision.state === "HUMAN_HANDOFF") {
+      const saved = await persist(dependencies, active, security.sessionId, {
+        userMessage: parsed.data.question,
+        assistantMessage: HUMAN_HANDOFF_MESSAGE,
+        assistantOutcome: "HUMAN_HANDOFF",
+      });
+      if (saved.state !== "SAVED") return dependencyFallback(cookie);
+      return json({
+        response: {
+          status: "HUMAN_HANDOFF",
+          message: HUMAN_HANDOFF_MESSAGE,
+          contact: APPROVED_SALES_CONTACT,
+          conversationId: saved.conversationId,
+        },
+        status: 200,
+        cookie,
+      });
+    }
     const answer = await generateGroundedAnswer({
       decision,
       question: prepared.currentQuestion,

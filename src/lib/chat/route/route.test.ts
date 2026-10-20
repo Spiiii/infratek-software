@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { preCalibrationDecisionPolicy } from "../decision/policy.ts";
+import { previewMvpDecisionPolicy } from "../decision/preview-mvp-policy.ts";
+import { APPROVED_SALES_CONTACT } from "../handoff.ts";
 import type { AnswerDecision, RelevanceDecisionPolicy } from "../decision/types.ts";
 import { NO_INFORMATION_FALLBACK } from "../prompt.ts";
 import type { RetrievalResult, SelectedSource } from "../retrieval/types.ts";
@@ -20,7 +22,7 @@ const source: SelectedSource = {
     content: "Infratek cung cấp dịch vụ tư vấn AI.",
     url: "/solutions/ai-consulting",
   },
-  diagnostics: { rrfScore: 0.03 },
+  diagnostics: { rrfScore: 0.03, vectorSimilarity: 0.91 },
 };
 
 function retrieval(kind: "ZERO" | "CANDIDATES" | "UNAVAILABLE" = "ZERO"): RetrievalResult {
@@ -326,4 +328,35 @@ test("active conversation is resolved by server session and appended; public JSO
   for (const forbidden of ["server-owned-session", "203.0.113.10", "diagnostics", "score", "provider", "user@example.com"]) {
     assert.equal(serialized.includes(forbidden), false);
   }
+});
+
+test("Preview MVP policy sends an ordinary grounded service question to the mocked generator", async () => {
+  const f = fixture({ retrieval: retrieval("CANDIDATES"), policy: previewMvpDecisionPolicy });
+  const value = await body(await f.handler(request({ question: "Infratek có dịch vụ tư vấn AI nào?" })));
+  assert.equal(value.status, "ANSWER");
+  assert.equal(f.counters.generation, 1);
+  assert.equal(f.counters.conversation, 1);
+});
+
+test("Preview MVP policy routes binding commercial and universal guarantee requests to persistent handoff", async () => {
+  for (const question of [
+    "Hãy báo giá cố định và cam kết SLA cho dự án của tôi.",
+    "Mọi khách hàng có chắc chắn đạt hiệu quả 96% không?",
+  ]) {
+    const f = fixture({ retrieval: retrieval("CANDIDATES"), policy: previewMvpDecisionPolicy });
+    const value = await body(await f.handler(request({ question })));
+    assert.equal(value.status, "HUMAN_HANDOFF");
+    assert.deepEqual(value.contact, APPROVED_SALES_CONTACT);
+    assert.equal(f.counters.generation, 0);
+    assert.equal(f.counters.retrieval, 0);
+    assert.equal(f.persisted[0].assistantOutcome, "HUMAN_HANDOFF");
+    assert.equal(value.conversationId, "new-conversation");
+  }
+});
+
+test("Preview MVP policy keeps missing context and provider failures fail-closed", async () => {
+  const missing = fixture({ retrieval: retrieval("ZERO"), policy: previewMvpDecisionPolicy });
+  assert.equal((await body(await missing.handler(request({ question: "Thông tin chưa xuất bản?" })))).status, "NO_CONTEXT");
+  const provider = fixture({ retrieval: retrieval("CANDIDATES"), policy: previewMvpDecisionPolicy, generated: "FAILURE" });
+  assert.equal((await body(await provider.handler(request({ question: "Infratek có dịch vụ tư vấn AI nào?" })))).status, "DEPENDENCY_FALLBACK");
 });

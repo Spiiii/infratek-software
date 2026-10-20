@@ -1,7 +1,7 @@
 import { readChatBuildSafeConfig, readChatSecuritySecrets } from "../config.ts";
 import { ChatConversationRepository } from "../conversation/repository.ts";
 import { createConversationService } from "../conversation/service.ts";
-import { preCalibrationDecisionPolicy } from "../decision/policy.ts";
+import { selectRuntimeDecisionPolicy } from "../decision/preview-mvp-policy.ts";
 import { createLiveGeminiChatAdapter } from "../generation/gemini.ts";
 import { createLiveQueryEmbeddingAdapter } from "../retrieval/query-embedding.ts";
 import { FtsRetrievalRepository, VectorRetrievalRepository } from "../retrieval/repository.ts";
@@ -70,7 +70,10 @@ export function createChatRuntimeDependencies(
     }),
     conversations: createConversationService(new ChatConversationRepository(executor), environment),
     retrieve: (question) => retrieve(question, { queryEmbedding, vectorRepository, ftsRepository }, environment),
-    decisionPolicy: preCalibrationDecisionPolicy,
+    decisionPolicy: selectRuntimeDecisionPolicy({
+      previewMvpEnabled: config.features.previewMvpEnabled,
+      vercelEnvironment: environment.VERCEL_ENV,
+    }),
     generator: createLiveGeminiChatAdapter(environment),
     unanswered: createUnansweredService(new ChatUnansweredRepository(executor), environment),
     production: environment.NODE_ENV === "production",

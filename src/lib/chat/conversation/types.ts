@@ -1,7 +1,7 @@
 import type { UnsupportedOutputCategory } from "../safety/output.ts";
 
 export type ConversationRole = "user" | "assistant";
-export type ConversationOutcome = "ANSWER" | "NO_CONTEXT";
+export type ConversationOutcome = "ANSWER" | "NO_CONTEXT" | "HUMAN_HANDOFF";
 
 export type ConversationMessage = {
   role: ConversationRole;

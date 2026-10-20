@@ -1,5 +1,6 @@
 import type { CitedPublicSource } from "./grounding/citations.ts";
 import type { PublicChatResponse } from "./route/contracts.ts";
+import type { PublicSalesContact } from "./route/contracts.ts";
 
 export const CHAT_QUESTION_MAX_LENGTH = 500;
 
@@ -11,11 +12,12 @@ export type ChatUiOutcome = {
   showContact: boolean;
   canRetry: boolean;
   retryAfterSeconds?: number;
+  handoffContact?: PublicSalesContact;
 };
 
 const STATUS = new Set<PublicChatResponse["status"]>([
   "ANSWER", "NO_CONTEXT", "CALIBRATION_REQUIRED", "DEPENDENCY_FALLBACK",
-  "INVALID_REQUEST", "VERIFICATION_REQUIRED", "RATE_LIMITED", "SAFE_FALLBACK",
+  "INVALID_REQUEST", "VERIFICATION_REQUIRED", "RATE_LIMITED", "SAFE_FALLBACK", "HUMAN_HANDOFF",
 ]);
 
 export function validateChatQuestion(value: string): "VALID" | "EMPTY" | "TOO_LONG" {
@@ -105,8 +107,30 @@ export function mapPublicChatResponse(value: unknown): ChatUiOutcome {
         conversationId: typeof response.conversationId === "string" ? response.conversationId : undefined,
         showContact: true, canRetry: false,
       };
+    case "HUMAN_HANDOFF":
+      if (typeof response.message !== "string" || !isSalesContact(response.contact)) return malformed();
+      return {
+        kind: "HUMAN_HANDOFF",
+        text: response.message,
+        sources: [],
+        conversationId: typeof response.conversationId === "string" ? response.conversationId : undefined,
+        showContact: false,
+        canRetry: false,
+        handoffContact: response.contact,
+      };
   }
   return malformed();
+}
+
+function isSalesContact(value: unknown): value is PublicSalesContact {
+  if (!value || typeof value !== "object") return false;
+  const contact = value as Record<string, unknown>;
+  return contact.name === "Ngô Đức Trọng" &&
+    contact.role === "Tư vấn giải pháp và quản lý dự án" &&
+    contact.phone === "0901 671 671" &&
+    contact.email === "trong.ngo@infratek.vn" &&
+    contact.zalo === "0901 671 671" &&
+    contact.route === "/contact";
 }
 
 function isPublicSource(value: unknown): value is CitedPublicSource {

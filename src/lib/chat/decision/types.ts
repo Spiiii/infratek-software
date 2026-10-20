@@ -26,6 +26,10 @@ export type AnswerDecision =
       state: "CALIBRATION_REQUIRED";
       sources: readonly SelectedSource[];
       policyVersion: string;
+    }
+  | {
+      state: "HUMAN_HANDOFF";
+      policyVersion: string;
     };
 
 export type PublicChatStatus =
@@ -36,9 +40,11 @@ export type PublicChatStatus =
   | "INVALID_REQUEST"
   | "RATE_LIMITED"
   | "VERIFICATION_REQUIRED"
-  | "SAFE_FALLBACK";
+  | "SAFE_FALLBACK"
+  | "HUMAN_HANDOFF";
 
 export interface RelevanceDecisionPolicy {
   readonly version: string;
-  decide(result: RetrievalResult): AnswerDecision;
+  preflight?(context: { question: string }): AnswerDecision | undefined;
+  decide(result: RetrievalResult, context?: { question: string }): AnswerDecision;
 }
