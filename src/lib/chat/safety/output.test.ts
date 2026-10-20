@@ -152,6 +152,39 @@ test("ordinary grounded service descriptions allow harmless paraphrasing", () =>
   }
 });
 
+test("service assessment language is not misclassified as a price claim", () => {
+  const context = [
+    "Infratek Software cung cấp dịch vụ tư vấn AI cho doanh nghiệp.",
+    "AI Consulting hỗ trợ xác định use case và lộ trình ứng dụng AI.",
+  ].join("\n");
+
+  assert.equal(
+    validateProtectedOutput(
+      "Infratek Software cung cấp AI Consulting để đánh giá mức độ sẵn sàng và xây dựng lộ trình ứng dụng AI [S1].",
+      context,
+    ).state,
+    "SUPPORTED",
+  );
+  assert.equal(
+    validateProtectedOutput(
+      "Infratek Software cung cấp AI Consulting de danh gia muc do san sang [S1].",
+      context,
+    ).state,
+    "SUPPORTED",
+  );
+});
+
+test("actual price claims remain protected with and without Vietnamese diacritics", () => {
+  for (const answer of ["Giá dịch vụ là 50 triệu đồng [S1].", "Gia dich vu la 50 trieu dong [S1]."]) {
+    const result = validateProtectedOutput(answer, "Nguồn chỉ mô tả dịch vụ tư vấn AI.");
+    assert.equal(result.state, "SAFE_FALLBACK");
+    if (result.state === "SAFE_FALLBACK") {
+      assert.ok(result.categories.includes("UNSUPPORTED_RISKY_CLAIM"));
+      assert.ok(result.categories.includes("UNSUPPORTED_NUMBER"));
+    }
+  }
+});
+
 test("unsupported SLA, deployment deadline, ROI and contractual entitlement fail closed", () => {
   const context = "Infratek Software cung cấp dịch vụ tư vấn và triển khai giải pháp theo nhu cầu.";
   for (const answer of [

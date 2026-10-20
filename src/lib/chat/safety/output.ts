@@ -19,7 +19,6 @@ const CITATION = /\[S\d+\]/giu;
 const NUMBER = /(?<![\p{L}\p{N}])(?:₫|đ|vnd|usd|\$)?\s*\d+(?:[.,]\d+)*(?:\s*(?:%|₫|đ|vnd|usd|ngày|tuần|tháng|năm|giờ|phút|triệu|tỷ|đồng))?/giu;
 const PROPER_NAME = /\b\p{Lu}[\p{L}\p{M}\d&.-]*(?:\s+(?:\p{Lu}[\p{L}\p{M}\d&.-]*|\d+))+\b/gu;
 const RISKY_KEYWORDS = [
-  "giá",
   "chi phí",
   "roi",
   "lợi nhuận",
@@ -33,6 +32,7 @@ const RISKY_KEYWORDS = [
   "hợp đồng",
 ] as const;
 const QUANTIFIED_RISKY_KEYWORDS = ["triển khai"] as const;
+const PRICE_KEYWORD = "gia";
 
 function normalizeText(value: string): string {
   return value
@@ -58,6 +58,11 @@ function canonicalizeVietnameseTokens(value: string): string {
 
 function containsTokenPhrase(text: string, phrase: string): boolean {
   return ` ${text} `.includes(` ${phrase} `);
+}
+
+function containsPriceKeyword(text: string): boolean {
+  const tokens = text.split(" ").filter(Boolean);
+  return tokens.some((token, index) => token === PRICE_KEYWORD && tokens[index - 1] !== "danh");
 }
 
 function hasUnsupportedProperName(answer: string, context: string): boolean {
@@ -110,6 +115,7 @@ function hasUnsupportedRiskyClaim(answer: string, context: string): boolean {
     const keywords = canonicalKeywords.filter((keyword) =>
       containsTokenPhrase(canonicalSentence, keyword)
     );
+    if (containsPriceKeyword(canonicalSentence)) keywords.push(PRICE_KEYWORD);
     const claimNumbers = values(NUMBER, withoutContacts(sentence), normalizeNumber);
     const quantifiedKeywords = claimNumbers.size > 0
       ? canonicalQuantifiedKeywords.filter((keyword) => containsTokenPhrase(canonicalSentence, keyword))
@@ -118,7 +124,11 @@ function hasUnsupportedRiskyClaim(answer: string, context: string): boolean {
     if (guardedKeywords.length === 0) return false;
     if (claimNumbers.size > 0) {
       return (
-        guardedKeywords.some((keyword) => !containsTokenPhrase(canonicalContext, keyword)) ||
+        guardedKeywords.some((keyword) =>
+          keyword === PRICE_KEYWORD
+            ? !containsPriceKeyword(canonicalContext)
+            : !containsTokenPhrase(canonicalContext, keyword)
+        ) ||
         [...claimNumbers].some((value) => !contextNumbers.has(value))
       );
     }

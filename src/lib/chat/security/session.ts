@@ -70,6 +70,7 @@ export function verifyAnonymousSession(
 
     const signedPart = `${parts[0]}.${parts[1]}`;
     const suppliedSignature = Buffer.from(parts[2], "base64url");
+    if (suppliedSignature.toString("base64url") !== parts[2]) return { state: "INVALID" };
     const expectedSignature = sign(signedPart, secret);
     if (
       suppliedSignature.length !== expectedSignature.length ||

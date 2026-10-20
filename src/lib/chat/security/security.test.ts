@@ -53,14 +53,34 @@ test("session is opaque, signed, valid for exactly seven days, and uses hardened
 test("session rejects malformed, tampered, expired, and wrong-secret tokens without throwing", () => {
   const created = createAnonymousSession({ secret: SIGNING_SECRET, now: NOW });
   const [version, payload, signature] = created.token.split(".");
+  const base64urlAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
   const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { sid: string; exp: number };
   const changedId = Buffer.from(JSON.stringify({ ...decoded, sid: `${decoded.sid}x` })).toString("base64url");
   const changedExpiry = Buffer.from(JSON.stringify({ ...decoded, exp: decoded.exp + 1 })).toString("base64url");
+  const finalIndex = base64urlAlphabet.indexOf(signature.at(-1) ?? "");
+  assert.notEqual(finalIndex, -1);
+  const nonCanonicalSignature = `${signature.slice(0, -1)}${base64urlAlphabet[(finalIndex & 0b111100) | 0b000001]}`;
+  const changedSignature = `${signature[0] === "A" ? "B" : "A"}${signature.slice(1)}`;
+
+  assert.deepEqual(verifyAnonymousSession(created.token, SIGNING_SECRET, NOW), {
+    state: "VALID",
+    sessionId: created.sessionId,
+    expiresAt: created.expiresAt,
+  });
+  assert.notEqual(nonCanonicalSignature, signature);
+  assert.ok(
+    Buffer.from(nonCanonicalSignature, "base64url").equals(Buffer.from(signature, "base64url")),
+  );
+  assert.equal(
+    Buffer.from(changedSignature, "base64url").equals(Buffer.from(signature, "base64url")),
+    false,
+  );
   for (const token of [
     "bad",
     `${version}.${changedId}.${signature}`,
     `${version}.${changedExpiry}.${signature}`,
-    `${version}.${payload}.${signature.slice(0, -1)}x`,
+    `${version}.${payload}.${nonCanonicalSignature}`,
+    `${version}.${payload}.${changedSignature}`,
   ]) {
     assert.deepEqual(verifyAnonymousSession(token, SIGNING_SECRET, NOW), { state: "INVALID" });
   }
