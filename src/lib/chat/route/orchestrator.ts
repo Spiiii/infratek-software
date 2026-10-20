@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { prepareMultiTurnRetrieval } from "../conversation/multi-turn.ts";
 import type {
   ActiveConversationResult,
@@ -25,6 +27,7 @@ import {
   publicChatRequestSchema,
   type PublicChatResponse,
 } from "./contracts.ts";
+import type { SafeFallbackDiagnosticSink } from "./diagnostics.ts";
 
 type PersistInput = {
   userMessage: string;
@@ -56,6 +59,7 @@ export type ChatRouteDependencies = {
   unanswered: {
     record(input: { trigger: "NO_CONTEXT" | "NO_ANSWER"; question: string }): Promise<unknown>;
   };
+  diagnostics?: SafeFallbackDiagnosticSink;
   production?: boolean;
   environment?: Record<string, string | undefined>;
 };
@@ -286,6 +290,11 @@ export function createChatPostHandler(dependencies: ChatRouteDependencies) {
     }
 
     if (answer.state === "SAFE_FALLBACK") {
+      dependencies.diagnostics?.emit({
+        correlationId: randomUUID(),
+        failureStage: "PROTECTED_OUTPUT_VALIDATION",
+        unsupportedCategories: answer.categories,
+      });
       const saved = await persist(dependencies, active, security.sessionId, {
         userMessage: parsed.data.question,
         unsupportedCategories: answer.categories,

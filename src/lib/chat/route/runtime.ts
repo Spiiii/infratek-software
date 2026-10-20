@@ -13,6 +13,7 @@ import { createTurnstileVerifier } from "../security/turnstile.ts";
 import { ChatUnansweredRepository } from "../unanswered/repository.ts";
 import { createUnansweredService } from "../unanswered/service.ts";
 import type { ChatRouteDependencies } from "./orchestrator.ts";
+import { createPreviewSafeFallbackDiagnosticSink } from "./diagnostics.ts";
 
 type QueryResult = { rows: Array<Record<string, unknown>>; rowCount?: number | null };
 
@@ -76,6 +77,7 @@ export function createChatRuntimeDependencies(
     }),
     generator: createLiveGeminiChatAdapter(environment),
     unanswered: createUnansweredService(new ChatUnansweredRepository(executor), environment),
+    diagnostics: createPreviewSafeFallbackDiagnosticSink(environment),
     production: environment.NODE_ENV === "production",
     environment,
   };

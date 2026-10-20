@@ -10,6 +10,10 @@ import type { RetrievalResult, SelectedSource } from "../retrieval/types.ts";
 import type { ChatSecurityResult, SessionCookieContract } from "../security/types.ts";
 import type { StructuredGenerationOutput } from "../generation/types.ts";
 import { createChatPostHandler, type ChatRouteDependencies } from "./orchestrator.ts";
+import {
+  createPreviewSafeFallbackDiagnosticSink,
+  type SafeFallbackDiagnosticInput,
+} from "./diagnostics.ts";
 
 const source: SelectedSource = {
   source: {
@@ -63,6 +67,7 @@ function fixture(options: {
   conversationFailure?: boolean;
   unansweredFailure?: boolean;
   environment?: Record<string, string | undefined>;
+  diagnostics?: SafeFallbackDiagnosticInput[];
 } = {}) {
   const counters: Counters = { security: 0, lookup: 0, history: 0, retrieval: 0, generation: 0, conversation: 0, unanswered: 0 };
   const persisted: Array<Record<string, unknown>> = [];
@@ -132,6 +137,9 @@ function fixture(options: {
           : { state: "RECORDED", id: "u", occurrenceCount: 1 };
       },
     },
+    diagnostics: options.diagnostics
+      ? { emit(input) { options.diagnostics?.push(input); } }
+      : undefined,
     production: true,
     environment: options.environment ?? {},
   };
@@ -262,16 +270,76 @@ test("injected calibrated policy produces one grounded ANSWER with server-owned 
 });
 
 test("unsupported output is fully rejected and persists only user-side review event", async () => {
-  const f = fixture({ retrieval: retrieval("CANDIDATES"), policy: calibratedPolicy, generated: { status: "ANSWER", answer: "Cam kết ROI 999%", citations: ["S1"] } });
+  const diagnostics: SafeFallbackDiagnosticInput[] = [];
+  const f = fixture({ retrieval: retrieval("CANDIDATES"), policy: calibratedPolicy, generated: { status: "ANSWER", answer: "Cam kết ROI 999%", citations: ["S1"] }, diagnostics });
   const value = await body(await f.handler(request({ question: "ROI?" })));
   assert.equal(value.status, "SAFE_FALLBACK");
   assert.equal(JSON.stringify(value).includes("999"), false);
   assert.equal(f.counters.generation, 1);
   assert.equal(f.persisted[0].assistantMessage, undefined);
   assert.ok(Array.isArray(f.persisted[0].unsupportedCategories));
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0]?.failureStage, "PROTECTED_OUTPUT_VALIDATION");
+  assert.deepEqual(diagnostics[0]?.unsupportedCategories, [
+    "UNSUPPORTED_NUMBER",
+    "UNSUPPORTED_PROPER_NAME",
+    "UNSUPPORTED_RISKY_CLAIM",
+  ]);
+  assert.match(diagnostics[0]?.correlationId ?? "", /^[0-9a-f-]{36}$/u);
 
   const failed = fixture({ retrieval: retrieval("CANDIDATES"), policy: calibratedPolicy, generated: { status: "ANSWER", answer: "Cam kết ROI 999%", citations: ["S1"] }, conversationFailure: true });
   assert.equal((await body(await failed.handler(request({ question: "ROI?" })))).status, "DEPENDENCY_FALLBACK");
+});
+
+test("Preview diagnostics are bounded, content-free, and disabled outside the explicit MVP Preview", () => {
+  const output: string[] = [];
+  const sink = createPreviewSafeFallbackDiagnosticSink(
+    {
+      VERCEL_ENV: "preview",
+      CHAT_PREVIEW_MVP_ENABLED: "true",
+      VERCEL_GIT_COMMIT_SHA: "f278b2822c8521dba979763a1bbb784e0005e567",
+    },
+    (value) => output.push(value),
+    () => new Date("2026-10-20T14:00:00.000Z"),
+  );
+  sink?.emit({
+    correlationId: "12345678-1234-4123-8123-123456789abc",
+    failureStage: "PROTECTED_OUTPUT_VALIDATION",
+    unsupportedCategories: ["UNSUPPORTED_PROPER_NAME", "UNSUPPORTED_RISKY_CLAIM"],
+  });
+
+  assert.equal(output.length, 1);
+  assert.deepEqual(JSON.parse(output[0] ?? "{}"), {
+    event: "CHAT_SAFE_FALLBACK_DIAGNOSTIC",
+    requestCorrelationId: "12345678-1234-4123-8123-123456789abc",
+    failureStage: "PROTECTED_OUTPUT_VALIDATION",
+    validatorRuleIdentifiers: [
+      "protected_output.unsupported_proper_name",
+      "protected_output.unsupported_risky_claim",
+    ],
+    unsupportedCategories: ["UNSUPPORTED_PROPER_NAME", "UNSUPPORTED_RISKY_CLAIM"],
+    deploymentVersion: "f278b2822c8521dba979763a1bbb784e0005e567",
+    timestamp: "2026-10-20T14:00:00.000Z",
+  });
+  for (const forbidden of ["question", "answer", "source", "email", "phone", "token", "secret", "ip"]) {
+    assert.equal(output[0]?.toLowerCase().includes(forbidden), false);
+  }
+
+  assert.equal(createPreviewSafeFallbackDiagnosticSink({
+    VERCEL_ENV: "production",
+    CHAT_PREVIEW_MVP_ENABLED: "true",
+  }), undefined);
+  assert.equal(createPreviewSafeFallbackDiagnosticSink({
+    VERCEL_ENV: "preview",
+    CHAT_PREVIEW_MVP_ENABLED: "false",
+  }), undefined);
+});
+
+test("successful answers do not emit SAFE_FALLBACK diagnostics", async () => {
+  const diagnostics: SafeFallbackDiagnosticInput[] = [];
+  const f = fixture({ retrieval: retrieval("CANDIDATES"), policy: calibratedPolicy, diagnostics });
+  assert.equal((await body(await f.handler(request({ question: "Dịch vụ AI?" })))).status, "ANSWER");
+  assert.deepEqual(diagnostics, []);
 });
 
 test("NO_ANSWER persists deterministic fallback and records unanswered", async () => {
