@@ -3,7 +3,7 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { SessionCookieContract } from "./types.ts";
 
 export const CHAT_SESSION_COOKIE_NAME = "infratek_chat_session";
-export const CHAT_SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
+export const CHAT_SESSION_TTL_SECONDS = 60 * 60;
 const TOKEN_VERSION = "v1";
 
 interface SessionPayload {

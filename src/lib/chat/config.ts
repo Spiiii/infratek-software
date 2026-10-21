@@ -22,7 +22,7 @@ const buildSafeSchema = z.object({
   CHAT_INPUT_TOKEN_BUDGET: positiveInteger.default(12_000),
   EMBED_INTERACTIVE_TIMEOUT_MS: positiveInteger.default(15_000),
   CHAT_GENERATION_TIMEOUT_MS: positiveInteger.default(10_000),
-  CHAT_SESSION_TTL_SECONDS: z.coerce.number().pipe(z.literal(604_800)).default(604_800),
+  CHAT_SESSION_TTL_SECONDS: z.coerce.number().pipe(z.literal(3_600)).default(3_600),
   TURNSTILE_VERIFY_TIMEOUT_MS: z.coerce.number().int().positive().default(5_000),
   CHAT_CONTEXT_MESSAGES: positiveInteger.default(6),
   CHAT_OUTPUT_MAX_TOKENS: positiveInteger.default(256),

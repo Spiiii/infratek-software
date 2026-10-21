@@ -29,7 +29,7 @@ const SIGNING_SECRET = "session-only-test-secret";
 const IP_SECRET = "ip-only-test-secret";
 const LIMITS = { perMinute: 6, ipDaily: 50, session: 30, globalDaily: 150 };
 
-test("session is opaque, signed, valid for exactly seven days, and uses hardened cookie flags", () => {
+test("session is opaque, signed, valid for exactly 60 minutes, and uses hardened cookie flags", () => {
   const created = createAnonymousSession({ secret: SIGNING_SECRET, now: NOW, production: true });
   assert.equal(created.expiresAt - NOW, CHAT_SESSION_TTL_SECONDS * 1000);
   assert.match(created.sessionId, /^[A-Za-z0-9_-]{40,}$/);
@@ -39,6 +39,10 @@ test("session is opaque, signed, valid for exactly seven days, and uses hardened
     sessionId: created.sessionId,
     expiresAt: created.expiresAt,
   });
+  assert.deepEqual(
+    verifyAnonymousSession(created.token, SIGNING_SECRET, NOW + 3_600_000),
+    { state: "INVALID" },
+);
   assert.deepEqual(created.cookie.options, {
     httpOnly: true,
     secure: true,
@@ -90,7 +94,7 @@ test("session rejects malformed, tampered, expired, and wrong-secret tokens with
 
 test("security configuration uses locked defaults and dedicated required secrets", () => {
   const config = readChatBuildSafeConfig({});
-  assert.equal(config.limits.sessionTtlSeconds, 604_800);
+  assert.equal(config.limits.sessionTtlSeconds, 3_600);
   assert.equal(config.limits.turnstileTimeoutMs, 5_000);
   assert.throws(() => readChatBuildSafeConfig({ CHAT_SESSION_TTL_SECONDS: "1" }));
   assert.throws(() => readChatSecuritySecrets({}));
