@@ -19,7 +19,10 @@ import type {
   ContactFallbackMetadata,
   SessionCookieContract,
 } from "../security/types.ts";
-import { generateGroundedAnswer } from "../service/grounded-answer.ts";
+import {
+  generateGroundedAnswer,
+  type GroundedAnswerResult,
+} from "../service/grounded-answer.ts";
 import { containsObviousAttackPattern } from "./attack-filter.ts";
 import {
   DEPENDENCY_FALLBACK,
@@ -27,7 +30,11 @@ import {
   publicChatRequestSchema,
   type PublicChatResponse,
 } from "./contracts.ts";
-import type { SafeFallbackDiagnosticSink } from "./diagnostics.ts";
+import type {
+  DependencyFailureReasonCode,
+  DependencyFailureStage,
+  SafeFallbackDiagnosticSink,
+} from "./diagnostics.ts";
 
 type PersistInput = {
   userMessage: string;
@@ -113,12 +120,47 @@ function invalid(cookie?: SessionCookieContract): Response {
   return json({ response: { status: "INVALID_REQUEST" }, status: 400, cookie });
 }
 
-function dependencyFallback(cookie?: SessionCookieContract): Response {
+function dependencyFallback(
+  diagnostics: SafeFallbackDiagnosticSink | undefined,
+  correlationId: string,
+  failureStage: DependencyFailureStage,
+  sanitizedReasonCode: DependencyFailureReasonCode,
+  cookie?: SessionCookieContract,
+  fallback = DEPENDENCY_FALLBACK,
+): Response {
+  diagnostics?.emitDependencyFallback({ correlationId, failureStage, sanitizedReasonCode });
   return json({
-    response: { status: "DEPENDENCY_FALLBACK", fallback: DEPENDENCY_FALLBACK },
+    response: { status: "DEPENDENCY_FALLBACK", fallback },
     status: 503,
     cookie,
   });
+}
+
+function groundedDependencyDiagnostic(
+  answer: Extract<GroundedAnswerResult, { state: "DEPENDENCY_FALLBACK" }>,
+): { failureStage: DependencyFailureStage; sanitizedReasonCode: DependencyFailureReasonCode } {
+  switch (answer.reason) {
+    case "RETRIEVAL_UNAVAILABLE":
+      return { failureStage: "RETRIEVAL", sanitizedReasonCode: "RETRIEVAL_UNAVAILABLE" };
+    case "INVALID_RETRIEVAL_STATE":
+      return { failureStage: "RETRIEVAL", sanitizedReasonCode: "RETRIEVAL_STATE_INVALID" };
+    case "INVALID_CONTEXT":
+      return { failureStage: "GROUNDING_CONTEXT", sanitizedReasonCode: "CONTEXT_INVALID" };
+    case "INPUT_BUDGET_EXCEEDED":
+      return { failureStage: "GENERATION", sanitizedReasonCode: "INPUT_BUDGET_EXCEEDED" };
+    case "GENERATION_CALL_BUDGET_EXCEEDED":
+      return { failureStage: "GENERATION", sanitizedReasonCode: "GENERATION_CALL_BUDGET_EXCEEDED" };
+    case "PROVIDER_RATE_LIMITED":
+      return { failureStage: "GENERATION", sanitizedReasonCode: "GEMINI_RATE_LIMITED" };
+    case "PROVIDER_UNAVAILABLE":
+      return { failureStage: "GENERATION", sanitizedReasonCode: "GEMINI_PROVIDER_FAILURE" };
+    case "PROVIDER_TIMEOUT":
+      return { failureStage: "GENERATION", sanitizedReasonCode: "GEMINI_TIMEOUT" };
+    case "INVALID_PROVIDER_RESPONSE":
+      return { failureStage: "GENERATION", sanitizedReasonCode: "GEMINI_INVALID_RESPONSE" };
+    case "INVALID_GROUNDED_OUTPUT":
+      return { failureStage: "CITATION_VALIDATION", sanitizedReasonCode: "CITATION_INVALID" };
+  }
 }
 
 function publicRateFallback(metadata: ContactFallbackMetadata): string {
@@ -145,6 +187,7 @@ async function persist(
 
 export function createChatPostHandler(dependencies: ChatRouteDependencies) {
   return async function POST(request: Request): Promise<Response> {
+    const correlationId = randomUUID();
     if (request.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase() !== "application/json") {
       return invalid();
     }
@@ -166,19 +209,26 @@ export function createChatPostHandler(dependencies: ChatRouteDependencies) {
     });
     const cookie = "setCookie" in security ? security.setCookie : undefined;
 
-    if (security.state === "DEPLOYMENT_VERIFICATION_REQUIRED") return dependencyFallback();
+    if (security.state === "DEPLOYMENT_VERIFICATION_REQUIRED") {
+      return dependencyFallback(
+        dependencies.diagnostics,
+        correlationId,
+        "SECURITY",
+        "DEPLOYMENT_VERIFICATION_FAILURE",
+      );
+    }
     if (security.state === "VERIFICATION_REQUIRED") {
       return json({ response: { status: "VERIFICATION_REQUIRED" }, status: 403 });
     }
     if (security.state === "DEPENDENCY_UNAVAILABLE") {
-      return json({
-        response: {
-          status: "DEPENDENCY_FALLBACK",
-          fallback: publicRateFallback(security.fallback),
-        },
-        status: 503,
+      return dependencyFallback(
+        dependencies.diagnostics,
+        correlationId,
+        "SECURITY",
+        "SECURITY_DEPENDENCY_UNAVAILABLE",
         cookie,
-      });
+        publicRateFallback(security.fallback),
+      );
     }
     if (security.state === "RATE_LIMITED") {
       return json({
@@ -196,11 +246,27 @@ export function createChatPostHandler(dependencies: ChatRouteDependencies) {
     if (containsObviousAttackPattern(parsed.data.question)) return invalid(cookie);
 
     const active = await dependencies.conversations.findActive(security.sessionId);
-    if (active.state === "FAILURE") return dependencyFallback(cookie);
+    if (active.state === "FAILURE") {
+      return dependencyFallback(
+        dependencies.diagnostics,
+        correlationId,
+        "CONVERSATION",
+        "CONVERSATION_LOOKUP_FAILURE",
+        cookie,
+      );
+    }
     const history = active.state === "FOUND"
       ? await dependencies.conversations.history(active.conversationId)
       : { state: "READY" as const, messages: [] };
-    if (history.state === "FAILURE") return dependencyFallback(cookie);
+    if (history.state === "FAILURE") {
+      return dependencyFallback(
+        dependencies.diagnostics,
+        correlationId,
+        "CONVERSATION",
+        "CONVERSATION_HISTORY_FAILURE",
+        cookie,
+      );
+    }
 
     let prepared: ReturnType<typeof prepareMultiTurnRetrieval>;
     try {
@@ -210,7 +276,13 @@ export function createChatPostHandler(dependencies: ChatRouteDependencies) {
         dependencies.environment,
       );
     } catch {
-      return dependencyFallback(cookie);
+      return dependencyFallback(
+        dependencies.diagnostics,
+        correlationId,
+        "QUERY_PREPARATION",
+        "QUERY_PREPARATION_FAILURE",
+        cookie,
+      );
     }
     const preflightDecision = dependencies.decisionPolicy.preflight?.({ question: prepared.currentQuestion.value });
     if (preflightDecision?.state === "HUMAN_HANDOFF") {
@@ -219,7 +291,15 @@ export function createChatPostHandler(dependencies: ChatRouteDependencies) {
         assistantMessage: HUMAN_HANDOFF_MESSAGE,
         assistantOutcome: "HUMAN_HANDOFF",
       });
-      if (saved.state !== "SAVED") return dependencyFallback(cookie);
+      if (saved.state !== "SAVED") {
+        return dependencyFallback(
+          dependencies.diagnostics,
+          correlationId,
+          "PERSISTENCE",
+          "PERSISTENCE_FAILURE",
+          cookie,
+        );
+      }
       return json({
         response: {
           status: "HUMAN_HANDOFF",
@@ -235,7 +315,13 @@ export function createChatPostHandler(dependencies: ChatRouteDependencies) {
     try {
       retrieval = await dependencies.retrieve(prepared.retrievalText);
     } catch {
-      return dependencyFallback(cookie);
+      return dependencyFallback(
+        dependencies.diagnostics,
+        correlationId,
+        "RETRIEVAL",
+        "RETRIEVAL_EXECUTION_FAILURE",
+        cookie,
+      );
     }
     const decision = dependencies.decisionPolicy.decide(retrieval, { question: prepared.currentQuestion.value });
     if (decision.state === "HUMAN_HANDOFF") {
@@ -244,7 +330,15 @@ export function createChatPostHandler(dependencies: ChatRouteDependencies) {
         assistantMessage: HUMAN_HANDOFF_MESSAGE,
         assistantOutcome: "HUMAN_HANDOFF",
       });
-      if (saved.state !== "SAVED") return dependencyFallback(cookie);
+      if (saved.state !== "SAVED") {
+        return dependencyFallback(
+          dependencies.diagnostics,
+          correlationId,
+          "PERSISTENCE",
+          "PERSISTENCE_FAILURE",
+          cookie,
+        );
+      }
       return json({
         response: {
           status: "HUMAN_HANDOFF",
@@ -267,7 +361,16 @@ export function createChatPostHandler(dependencies: ChatRouteDependencies) {
     if (answer.state === "CALIBRATION_REQUIRED") {
       return json({ response: { status: "CALIBRATION_REQUIRED" }, status: 200, cookie });
     }
-    if (answer.state === "DEPENDENCY_FALLBACK") return dependencyFallback(cookie);
+    if (answer.state === "DEPENDENCY_FALLBACK") {
+      const diagnostic = groundedDependencyDiagnostic(answer);
+      return dependencyFallback(
+        dependencies.diagnostics,
+        correlationId,
+        diagnostic.failureStage,
+        diagnostic.sanitizedReasonCode,
+        cookie,
+      );
+    }
 
     if (answer.state === "ANSWER") {
       const saved = await persist(dependencies, active, security.sessionId, {
@@ -276,7 +379,15 @@ export function createChatPostHandler(dependencies: ChatRouteDependencies) {
         assistantOutcome: "ANSWER",
         sources: answer.sources,
       });
-      if (saved.state !== "SAVED") return dependencyFallback(cookie);
+      if (saved.state !== "SAVED") {
+        return dependencyFallback(
+          dependencies.diagnostics,
+          correlationId,
+          "PERSISTENCE",
+          "PERSISTENCE_FAILURE",
+          cookie,
+        );
+      }
       return json({
         response: {
           status: "ANSWER",
@@ -291,7 +402,7 @@ export function createChatPostHandler(dependencies: ChatRouteDependencies) {
 
     if (answer.state === "SAFE_FALLBACK") {
       dependencies.diagnostics?.emit({
-        correlationId: randomUUID(),
+        correlationId,
         failureStage: "PROTECTED_OUTPUT_VALIDATION",
         unsupportedCategories: answer.categories,
       });
@@ -299,7 +410,15 @@ export function createChatPostHandler(dependencies: ChatRouteDependencies) {
         userMessage: parsed.data.question,
         unsupportedCategories: answer.categories,
       });
-      if (saved.state !== "SAVED") return dependencyFallback(cookie);
+      if (saved.state !== "SAVED") {
+        return dependencyFallback(
+          dependencies.diagnostics,
+          correlationId,
+          "PERSISTENCE",
+          "PERSISTENCE_FAILURE",
+          cookie,
+        );
+      }
       return json({
         response: { status: "SAFE_FALLBACK", conversationId: saved.conversationId },
         status: 200,
@@ -313,7 +432,15 @@ export function createChatPostHandler(dependencies: ChatRouteDependencies) {
       assistantMessage: NO_CONTEXT_FALLBACK,
       assistantOutcome: "NO_CONTEXT",
     });
-    if (saved.state !== "SAVED") return dependencyFallback(cookie);
+    if (saved.state !== "SAVED") {
+      return dependencyFallback(
+        dependencies.diagnostics,
+        correlationId,
+        "PERSISTENCE",
+        "PERSISTENCE_FAILURE",
+        cookie,
+      );
+    }
     await dependencies.unanswered.record({ trigger, question: parsed.data.question });
     return json({
       response: {

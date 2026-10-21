@@ -8,10 +8,12 @@ import type { AnswerDecision, RelevanceDecisionPolicy } from "../decision/types.
 import { NO_INFORMATION_FALLBACK } from "../prompt.ts";
 import type { RetrievalResult, SelectedSource } from "../retrieval/types.ts";
 import type { ChatSecurityResult, SessionCookieContract } from "../security/types.ts";
-import type { StructuredGenerationOutput } from "../generation/types.ts";
+import type { ChatGenerationFailure, StructuredGenerationOutput } from "../generation/types.ts";
 import { createChatPostHandler, type ChatRouteDependencies } from "./orchestrator.ts";
 import {
   createPreviewSafeFallbackDiagnosticSink,
+  emitUnexpectedRuntimeDiagnostic,
+  type DependencyFallbackDiagnosticInput,
   type SafeFallbackDiagnosticInput,
 } from "./diagnostics.ts";
 
@@ -63,11 +65,16 @@ function fixture(options: {
   retrieval?: RetrievalResult;
   policy?: RelevanceDecisionPolicy;
   generated?: StructuredGenerationOutput | "FAILURE";
+  generationFailure?: ChatGenerationFailure;
+  generationCallDelta?: number;
   active?: "FOUND" | "NOT_FOUND" | "FAILURE";
+  historyFailure?: boolean;
+  retrievalFailure?: boolean;
   conversationFailure?: boolean;
   unansweredFailure?: boolean;
   environment?: Record<string, string | undefined>;
   diagnostics?: SafeFallbackDiagnosticInput[];
+  dependencyDiagnostics?: DependencyFallbackDiagnosticInput[];
 } = {}) {
   const counters: Counters = { security: 0, lookup: 0, history: 0, retrieval: 0, generation: 0, conversation: 0, unanswered: 0 };
   const persisted: Array<Record<string, unknown>> = [];
@@ -91,6 +98,7 @@ function fixture(options: {
       },
       async history() {
         counters.history += 1;
+        if (options.historyFailure) return { state: "FAILURE", reason: "PERSISTENCE_UNAVAILABLE" };
         return { state: "READY", messages: [] };
       },
       async create(input) {
@@ -110,15 +118,16 @@ function fixture(options: {
     },
     async retrieve() {
       counters.retrieval += 1;
+      if (options.retrievalFailure) throw new Error("synthetic retrieval failure");
       return options.retrieval ?? retrieval();
     },
     decisionPolicy: options.policy ?? preCalibrationDecisionPolicy,
     generator: {
       get calls() { return counters.generation; },
       async generate() {
-        counters.generation += 1;
+        counters.generation += options.generationCallDelta ?? 1;
         return options.generated === "FAILURE"
-          ? { state: "FAILURE", reason: "PROVIDER_UNAVAILABLE" }
+          ? { state: "FAILURE", reason: options.generationFailure ?? "PROVIDER_UNAVAILABLE" }
           : {
               state: "SUCCESS",
               output: options.generated ?? {
@@ -138,7 +147,15 @@ function fixture(options: {
       },
     },
     diagnostics: options.diagnostics
-      ? { emit(input) { options.diagnostics?.push(input); } }
+      ? {
+          emit(input) { options.diagnostics?.push(input); },
+          emitDependencyFallback(input) { options.dependencyDiagnostics?.push(input); },
+        }
+      : options.dependencyDiagnostics
+        ? {
+            emit() {},
+            emitDependencyFallback(input) { options.dependencyDiagnostics?.push(input); },
+          }
       : undefined,
     production: true,
     environment: options.environment ?? {},
@@ -333,6 +350,109 @@ test("Preview diagnostics are bounded, content-free, and disabled outside the ex
     VERCEL_ENV: "preview",
     CHAT_PREVIEW_MVP_ENABLED: "false",
   }), undefined);
+});
+
+test("Preview dependency diagnostics are bounded, sanitized, and disabled in Production", () => {
+  const output: string[] = [];
+  const sink = createPreviewSafeFallbackDiagnosticSink(
+    {
+      VERCEL_ENV: "preview",
+      CHAT_PREVIEW_MVP_ENABLED: "true",
+      VERCEL_GIT_COMMIT_SHA: "5077a3994c4de49135b7e69359346375d00938d0",
+    },
+    (value) => output.push(value),
+    () => new Date("2026-10-21T02:00:00.000Z"),
+  );
+  sink?.emitDependencyFallback({
+    correlationId: "12345678-1234-4123-8123-123456789abc",
+    failureStage: "GENERATION",
+    sanitizedReasonCode: "GEMINI_TIMEOUT",
+  });
+
+  assert.deepEqual(JSON.parse(output[0] ?? "{}"), {
+    event: "CHAT_DEPENDENCY_FALLBACK_DIAGNOSTIC",
+    requestCorrelationId: "12345678-1234-4123-8123-123456789abc",
+    failureStage: "GENERATION",
+    sanitizedReasonCode: "GEMINI_TIMEOUT",
+    httpStatus: 503,
+    deploymentVersion: "5077a3994c4de49135b7e69359346375d00938d0",
+    timestamp: "2026-10-21T02:00:00.000Z",
+  });
+  for (const forbidden of ["question", "answer", "source", "email", "phone", "token", "secret", "ip", "raw"]) {
+    assert.equal(output[0]?.toLowerCase().includes(forbidden), false);
+  }
+  assert.equal(createPreviewSafeFallbackDiagnosticSink({
+    VERCEL_ENV: "production",
+    CHAT_PREVIEW_MVP_ENABLED: "true",
+  }), undefined);
+
+  const runtimeOutput: string[] = [];
+  emitUnexpectedRuntimeDiagnostic(
+    { VERCEL_ENV: "preview", CHAT_PREVIEW_MVP_ENABLED: "true" },
+    "12345678-1234-4123-8123-123456789abc",
+    (value) => runtimeOutput.push(value),
+    () => new Date("2026-10-21T02:01:00.000Z"),
+  );
+  assert.deepEqual(JSON.parse(runtimeOutput[0] ?? "{}"), {
+    event: "CHAT_DEPENDENCY_FALLBACK_DIAGNOSTIC",
+    requestCorrelationId: "12345678-1234-4123-8123-123456789abc",
+    failureStage: "RUNTIME",
+    sanitizedReasonCode: "UNEXPECTED_RUNTIME_FAILURE",
+    httpStatus: 503,
+    deploymentVersion: "UNAVAILABLE",
+    timestamp: "2026-10-21T02:01:00.000Z",
+  });
+});
+
+test("all orchestrator dependency exits emit fixed sanitized stage and reason codes", async () => {
+  const invalidRetrievalPolicy: RelevanceDecisionPolicy = {
+    version: "test-invalid-retrieval",
+    decide: () => ({
+      state: "DEPENDENCY_FALLBACK",
+      reason: "INVALID_RETRIEVAL_STATE",
+      policyVersion: "test-invalid-retrieval",
+    }),
+  };
+  const invalidContextPolicy: RelevanceDecisionPolicy = {
+    version: "test-invalid-context",
+    decide: () => ({ state: "ANSWER", sources: [], policyVersion: "test-invalid-context" }),
+  };
+  const cases: Array<{
+    options: Parameters<typeof fixture>[0];
+    question?: string;
+    stage: DependencyFallbackDiagnosticInput["failureStage"];
+    reason: DependencyFallbackDiagnosticInput["sanitizedReasonCode"];
+  }> = [
+    { options: { security: { state: "DEPLOYMENT_VERIFICATION_REQUIRED" } }, stage: "SECURITY", reason: "DEPLOYMENT_VERIFICATION_FAILURE" },
+    { options: { security: { state: "DEPENDENCY_UNAVAILABLE", fallback: { kind: "RETRY_LATER" } } }, stage: "SECURITY", reason: "SECURITY_DEPENDENCY_UNAVAILABLE" },
+    { options: { active: "FAILURE" }, stage: "CONVERSATION", reason: "CONVERSATION_LOOKUP_FAILURE" },
+    { options: { active: "FOUND", historyFailure: true }, stage: "CONVERSATION", reason: "CONVERSATION_HISTORY_FAILURE" },
+    { options: {}, question: "Gọi 0123456789", stage: "QUERY_PREPARATION", reason: "QUERY_PREPARATION_FAILURE" },
+    { options: { retrievalFailure: true }, stage: "RETRIEVAL", reason: "RETRIEVAL_EXECUTION_FAILURE" },
+    { options: { retrieval: retrieval("UNAVAILABLE"), policy: previewMvpDecisionPolicy }, stage: "RETRIEVAL", reason: "RETRIEVAL_UNAVAILABLE" },
+    { options: { retrieval: retrieval("CANDIDATES"), policy: invalidRetrievalPolicy }, stage: "RETRIEVAL", reason: "RETRIEVAL_STATE_INVALID" },
+    { options: { retrieval: retrieval("CANDIDATES"), policy: invalidContextPolicy }, stage: "GROUNDING_CONTEXT", reason: "CONTEXT_INVALID" },
+    { options: { retrieval: retrieval("CANDIDATES"), policy: calibratedPolicy, environment: { CHAT_INPUT_TOKEN_BUDGET: "10" } }, stage: "GENERATION", reason: "INPUT_BUDGET_EXCEEDED" },
+    { options: { retrieval: retrieval("CANDIDATES"), policy: calibratedPolicy, generationCallDelta: 2 }, stage: "GENERATION", reason: "GENERATION_CALL_BUDGET_EXCEEDED" },
+    { options: { retrieval: retrieval("CANDIDATES"), policy: calibratedPolicy, generated: "FAILURE", generationFailure: "PROVIDER_RATE_LIMITED" }, stage: "GENERATION", reason: "GEMINI_RATE_LIMITED" },
+    { options: { retrieval: retrieval("CANDIDATES"), policy: calibratedPolicy, generated: "FAILURE", generationFailure: "PROVIDER_UNAVAILABLE" }, stage: "GENERATION", reason: "GEMINI_PROVIDER_FAILURE" },
+    { options: { retrieval: retrieval("CANDIDATES"), policy: calibratedPolicy, generated: "FAILURE", generationFailure: "PROVIDER_TIMEOUT" }, stage: "GENERATION", reason: "GEMINI_TIMEOUT" },
+    { options: { retrieval: retrieval("CANDIDATES"), policy: calibratedPolicy, generated: "FAILURE", generationFailure: "INVALID_PROVIDER_RESPONSE" }, stage: "GENERATION", reason: "GEMINI_INVALID_RESPONSE" },
+    { options: { retrieval: retrieval("CANDIDATES"), policy: calibratedPolicy, generated: { status: "ANSWER", answer: "Citation giả [S1]", citations: ["S1"] } }, stage: "CITATION_VALIDATION", reason: "CITATION_INVALID" },
+    { options: { conversationFailure: true }, stage: "PERSISTENCE", reason: "PERSISTENCE_FAILURE" },
+  ];
+
+  for (const item of cases) {
+    const dependencyDiagnostics: DependencyFallbackDiagnosticInput[] = [];
+    const f = fixture({ ...item.options, dependencyDiagnostics });
+    const response = await f.handler(request({ question: item.question ?? "q" }));
+    assert.equal(response.status, 503);
+    assert.equal((await body(response)).status, "DEPENDENCY_FALLBACK");
+    assert.equal(dependencyDiagnostics.length, 1);
+    assert.equal(dependencyDiagnostics[0]?.failureStage, item.stage);
+    assert.equal(dependencyDiagnostics[0]?.sanitizedReasonCode, item.reason);
+    assert.match(dependencyDiagnostics[0]?.correlationId ?? "", /^[0-9a-f-]{36}$/u);
+  }
 });
 
 test("successful answers do not emit SAFE_FALLBACK diagnostics", async () => {
