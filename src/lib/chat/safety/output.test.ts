@@ -252,3 +252,142 @@ test("citations cannot authorize unsupported unaccented risky claims", () => {
     assert.ok(result.categories.includes("UNSUPPORTED_RISKY_CLAIM"));
   }
 });
+
+test("V2 allows ordinary capability paraphrases in Vietnamese, unaccented Vietnamese, and English", () => {
+  const context = [
+    "AI Consulting hỗ trợ xác định use case và lộ trình ứng dụng AI.",
+    "Software Development xây dựng web app và hệ thống tích hợp AI.",
+    "IT Outsourcing cung cấp đội ngũ kỹ thuật theo nhu cầu.",
+    "Giải pháp OCR xử lý và trích xuất dữ liệu tài liệu.",
+  ].join("\n");
+  for (const answer of [
+    "Infratek tư vấn lộ trình AI thông qua AI Consulting [S1].",
+    "Software Development phat trien web app tich hop AI [S1].",
+    "IT Outsourcing bổ sung đội ngũ kỹ thuật cho doanh nghiệp [S1].",
+    "OCR extracts data from business documents [S1].",
+    "Machine Learning và Cloud Computing là thuật ngữ kỹ thuật phổ biến [S1].",
+  ]) assert.equal(validateProtectedOutput(answer, context).state, "SUPPORTED");
+});
+
+test("V2 qualitative benefits accept near-verbatim evidence and reject synonym expansion", () => {
+  assert.equal(
+    validateProtectedOutput(
+      "Giải pháp giúp tiết kiệm thời gian xử lý hồ sơ [S1].",
+      "Giải pháp OCR giúp tiết kiệm thời gian xử lý hồ sơ.",
+    ).state,
+    "SUPPORTED",
+  );
+  const expanded = validateProtectedOutput(
+    "Giải pháp giúp tiết kiệm thời gian xử lý hồ sơ [S1].",
+    "Giải pháp OCR giúp giảm thời gian xử lý hồ sơ.",
+  );
+  assert.equal(expanded.state, "SAFE_FALLBACK");
+  if (expanded.state === "SAFE_FALLBACK") {
+    assert.ok(expanded.categories.includes("UNSUPPORTED_RISKY_CLAIM"));
+  }
+});
+
+test("V2 accepts generic capitalized descriptions but protects unknown entity roles", () => {
+  assert.equal(
+    validateProtectedOutput(
+      "Giải Pháp Doanh Nghiệp hỗ trợ quy trình nội bộ [S1].",
+      "Giải pháp cho doanh nghiệp hỗ trợ quy trình nội bộ.",
+    ).state,
+    "SUPPORTED",
+  );
+  for (const answer of [
+    "Khách hàng Contoso đã sử dụng OCR [S1].",
+    "Dự án Phoenix đã hoàn thành [S1].",
+    "Đối tác Fabrikam cung cấp nền tảng [S1].",
+    "Chứng nhận GoldCloud đã được cấp [S1].",
+  ]) {
+    const result = validateProtectedOutput(answer, "Nguồn không nêu khách hàng, dự án, đối tác hoặc chứng nhận này.");
+    assert.equal(result.state, "SAFE_FALLBACK");
+    if (result.state === "SAFE_FALLBACK") {
+      assert.ok(result.categories.includes("UNSUPPORTED_PROPER_NAME"));
+    }
+  }
+});
+
+test("V2 verified public entities use cited evidence or the bounded server allowlist", () => {
+  assert.equal(
+    validateProtectedOutput("Microsoft Azure hỗ trợ hạ tầng [S1].", "Tích hợp Microsoft Azure.").state,
+    "SUPPORTED",
+  );
+  assert.equal(
+    validateProtectedOutput("Document AI hỗ trợ OCR [S1].", "Nguồn mô tả OCR.").state,
+    "SUPPORTED",
+  );
+  const unknown = validateProtectedOutput("Contoso Limited hỗ trợ OCR [S1].", "Nguồn mô tả OCR.");
+  assert.equal(unknown.state, "SAFE_FALLBACK");
+});
+
+test("V2 case metrics require cited case scope and universalized results fail closed", () => {
+  const context = "Case study OCR ghi nhận độ chính xác 96% trong phạm vi dự án này.";
+  assert.equal(
+    validateProtectedOutput("Case study OCR ghi nhận độ chính xác 96% trong dự án này [S1].", context).state,
+    "SUPPORTED",
+  );
+  for (const answer of [
+    "Mọi dự án hoàn thành trong 7 ngày [S1].",
+    "Tat ca khach hang luon dat do chinh xac 96% [S1].",
+    "All customers always achieve 96% accuracy [S1].",
+  ]) {
+    const result = validateProtectedOutput(answer, `${context} Một case study hoàn thành trong 7 ngày.`);
+    assert.equal(result.state, "SAFE_FALLBACK");
+    if (result.state === "SAFE_FALLBACK") {
+      assert.ok(result.categories.includes("UNSUPPORTED_RISKY_CLAIM"));
+    }
+  }
+});
+
+test("V2 rejects 100% guarantees regardless of phrase order, accents, or cited wording", () => {
+  for (const answer of [
+    "Hệ thống đảm bảo chính xác 100% [S1].",
+    "100% đảm bảo chính xác [S1].",
+    "He thong dam bao chinh xac 100% [S1].",
+    "100% dam bao chinh xac [S1].",
+  ]) {
+    const result = validateProtectedOutput(answer, answer.replace(" [S1]", ""));
+    assert.equal(result.state, "SAFE_FALLBACK");
+    if (result.state === "SAFE_FALLBACK") {
+      assert.ok(result.categories.includes("UNSUPPORTED_RISKY_CLAIM"));
+    }
+  }
+});
+
+test("V2 keeps supported historical case-study results eligible after the absolute-guarantee fix", () => {
+  const context = "Case study OCR ghi nhận độ chính xác 96% trong phạm vi dự án này.";
+  assert.equal(
+    validateProtectedOutput("Case study OCR ghi nhận độ chính xác 96% trong dự án này [S1].", context).state,
+    "SUPPORTED",
+  );
+});
+
+test("V2 numbers must be supported by claim-bearing cited evidence, not unrelated context", () => {
+  const result = validateProtectedOutput(
+    "Case study OCR ghi nhận độ chính xác 96% [S1].",
+    { citedContext: "AI Consulting xác định lộ trình chuyển đổi số." },
+  );
+  assert.equal(result.state, "SAFE_FALLBACK");
+  if (result.state === "SAFE_FALLBACK") {
+    assert.ok(result.categories.includes("UNSUPPORTED_NUMBER"));
+    assert.ok(result.categories.includes("UNSUPPORTED_RISKY_CLAIM"));
+  }
+});
+
+test("V2 approved server contacts allow formatting variants while unknown contacts fail", () => {
+  const evidence = {
+    citedContext: "Thông tin liên hệ Infratek.",
+    approvedPhones: ["0901 671 671"],
+    approvedEmails: ["trong.ngo@infratek.vn"],
+  };
+  assert.equal(
+    validateProtectedOutput("Gọi 0901-671-671 hoặc email TRONG.NGO@INFRATEK.VN [S1].", evidence).state,
+    "SUPPORTED",
+  );
+  assert.equal(
+    validateProtectedOutput("Gọi 0988 111 222 hoặc email fake@example.com [S1].", evidence).state,
+    "SAFE_FALLBACK",
+  );
+});

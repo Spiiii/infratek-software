@@ -298,6 +298,24 @@ test("unsupported protected output rejects the entire answer without retry or pa
   assert.equal("answer" in result, false);
 });
 
+test("protected output uses only cited sources and rejects evidence leakage from uncited Top6", async () => {
+  const sources = [
+    source("S1", "AI Consulting xác định lộ trình ứng dụng AI."),
+    source("S2", "Case study OCR ghi nhận độ chính xác 96% trong dự án này."),
+  ];
+  const uncited = adapter(async () => answer("Case study OCR ghi nhận độ chính xác 96% trong dự án này.", ["S1"]));
+  const blocked = await generateGroundedAnswer({ decision: answerDecision(sources), question, generator: uncited });
+  assert.equal(blocked.state, "SAFE_FALLBACK");
+  if (blocked.state === "SAFE_FALLBACK") {
+    assert.ok(blocked.categories.includes("UNSUPPORTED_NUMBER"));
+  }
+
+  const cited = adapter(async () => answer("Case study OCR ghi nhận độ chính xác 96% trong dự án này.", ["S2"]));
+  const allowed = await generateGroundedAnswer({ decision: answerDecision(sources), question, generator: cited });
+  assert.equal(allowed.state, "ANSWER");
+  if (allowed.state === "ANSWER") assert.deepEqual(allowed.sources.map((item) => item.label), ["S2"]);
+});
+
 test("unaccented Vietnamese OCR answer remains grounded after canonical citation rendering", async () => {
   const ocrQuestion = prepareRetrievalQuery("giai phap OCR cho ngan hang", {});
   const generator = adapter(async () => answer("Infratek co giai phap OCR xu ly tai lieu ngan hang."));

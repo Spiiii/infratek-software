@@ -14,6 +14,7 @@ import {
   validateProtectedOutput,
   type UnsupportedOutputCategory,
 } from "../safety/output.ts";
+import { APPROVED_SALES_CONTACT } from "../handoff.ts";
 
 export type GroundedAnswerFallbackReason =
   | DependencyFallbackReason
@@ -168,7 +169,14 @@ export async function generateGroundedAnswer(options: {
 
   const outputSafety = validateProtectedOutput(
     renderedAnswer,
-    context.sources.map(({ source }) => source.content).join("\n"),
+    {
+      citedContext: context.sources
+        .filter(({ source }) => validation.citedLabels.includes(source.label))
+        .map(({ source }) => source.content)
+        .join("\n"),
+      approvedPhones: [APPROVED_SALES_CONTACT.phone, APPROVED_SALES_CONTACT.zalo],
+      approvedEmails: [APPROVED_SALES_CONTACT.email],
+    },
   );
   if (outputSafety.state === "SAFE_FALLBACK") {
     return {
