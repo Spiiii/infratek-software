@@ -15,11 +15,17 @@ import { Technologies } from "./src/collections/Technologies";
 import { Users } from "./src/collections/Users";
 import { CompanyFacts } from "./src/globals/CompanyFacts";
 import { Faq } from "./src/globals/Faq";
+import { resendAdapter } from "@payloadcms/email-resend";
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
 
 export default buildConfig({
+  email: resendAdapter({
+    defaultFromAddress: "no-reply@infratek.vn",
+    defaultFromName: "Infratek Software",
+    apiKey: process.env.RESEND_API_KEY ?? "",
+  }),
   admin: {
     user: Users.slug,
     importMap: {
