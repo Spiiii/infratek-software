@@ -33,14 +33,14 @@ export function ContactForm() {
     setSubmitError("");
 
     try {
-      const response = await fetch("https://formspree.io/f/xnjenaqd", {
-        method: "POST",
-        body: JSON.stringify(data),
-        headers: {
-           "Content-Type": "application/json",
-           Accept: "application/json", 
-          },
-      });
+      const response = await fetch("/api/contact", {
+       method: "POST",
+       body: JSON.stringify(data),
+       headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+  },
+});
 
       const result = await response.json();
 
